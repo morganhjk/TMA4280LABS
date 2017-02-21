@@ -40,11 +40,9 @@ int main (int argc, char **argv)
 		return 2;
 	}
 	
-	printf ("Using n = %i\n", n);
-	
 	double ret = integral (n, &zeta);
 	
-	printf ("%.17f\n%.17f\n", ret, sqrt (ret * 6.0));
+	printf ("%.17f\n", sqrt (ret * 6.0));
 	
 	return 0;
 }
