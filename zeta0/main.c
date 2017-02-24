@@ -24,11 +24,38 @@ double integral (int n, double (*f)(int))
 	return accum;
 }
 
+double ret (int n)
+{
+	return (sqrt (integral (n, &zeta) * 6.0));
+}
+
+void utest ()
+{
+	int n = 3;
+	double expected = 2.85773803324704145;
+	double computed = 0.0;
+	char *message;
+
+	computed = ret (n);
+
+	if (expected == computed)
+		message = "OK";
+	else
+		message = "FAIL";
+
+	printf ("zeta0 utest: expected=%.17f, computed=%.17f, test=%s\n", expected, computed, message);
+}
+
 int main (int argc, char **argv)
 {
+#ifdef UTEST
+	utest();
+	return 0;
+#endif
+
 	if (argc != 2)
 	{
-		printf ("usage: ./zeta0 n\n");
+		printf ("usage: %s n\n", argv[0]);
 		return 1;
 	}
 	
@@ -40,9 +67,7 @@ int main (int argc, char **argv)
 		return 2;
 	}
 	
-	double ret = integral (n, &zeta);
-	
-	printf ("%.17f\n", sqrt (ret * 6.0));
+	printf ("%.17f\n", ret (n));
 	
 	return 0;
 }

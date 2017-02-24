@@ -5,8 +5,12 @@ TARGET=zeta0
 $(TARGET): main.c
 	gcc -o $@ $^ -lm
 
-utest: $(TARGET) test-unit.sh
-	./test-unit.sh
+$(TARGET)_utest: main.c
+	gcc -o $@ $^ -lm -DUTEST
+
+utest: $(TARGET)_utest
+	./$(TARGET)_utest
 
 clean:
 	-rm -f $(TARGET)
+	-rm -f $(TARGET)_utest
