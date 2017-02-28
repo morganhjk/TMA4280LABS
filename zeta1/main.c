@@ -1,14 +1,14 @@
+///////////////////////////////////////////////////////////////////////////////
+// Includes
+///////////////////////////////////////////////////////////////////////////////
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <mpi.h>
 
-/*
-	S = pi^2 / 6
-	S * 6 = pi^2
-	sqrt (6S) = pi
-*/
-
+///////////////////////////////////////////////////////////////////////////////
+// Global variables
+///////////////////////////////////////////////////////////////////////////////
 // From/to indexes
 int *gi;	// Global
 int li[2];	// Local
@@ -16,6 +16,14 @@ int li[2];	// Local
 // Vector
 double *numbers;
 
+///////////////////////////////////////////////////////////////////////////////
+// Math functions
+///////////////////////////////////////////////////////////////////////////////
+/*
+	S = pi^2 / 6
+	S * 6 = pi^2
+	sqrt (6S) = pi
+*/
 
 double zeta (int i)
 {
@@ -34,6 +42,9 @@ double integral (int from, int to, double (*f)(int))
 	return accum;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// MPI functions
+///////////////////////////////////////////////////////////////////////////////
 void calculate_indexes (int n, int commsize)
 {
 	// Divide the number of iterations on the number of procs
@@ -74,6 +85,22 @@ void worker ()
 	MPI_Gather (&ret, 1, MPI_DOUBLE, numbers, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// Test functions
+///////////////////////////////////////////////////////////////////////////////
+int vtest (void)
+{
+	FILE *fp = fopen ("test-results.txt", "w");
+
+	// test stuff
+	
+	fclose (fp);
+	return 0;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Main functions
+///////////////////////////////////////////////////////////////////////////////
 void usage (char *appname)
 {
 	printf ("usage: mpirun -np <p> %s <n>\n", appname);
@@ -84,6 +111,9 @@ void usage (char *appname)
 
 int main (int argc, char **argv)
 {
+#ifdef VTEST
+	return vtest ();
+#else
 	// MPI Init
 	int commsize;
 	int myrank;
@@ -91,20 +121,36 @@ int main (int argc, char **argv)
 	MPI_Comm_size (MPI_COMM_WORLD, &commsize);
 	MPI_Comm_rank (MPI_COMM_WORLD, &myrank);
 
-	// Check input arguments
-	if (argc != 2 || ((commsize & (commsize - 1)) != 0))
+	// Check number of arguments
+	if (argc != 2)
 	{
 		if (!myrank)
 			usage (argv[0]);
+		return 0;
+	}
+
+	// Check commsize
+	if (((commsize & (commsize - 1)) != 0))
+	{
+		if (!myrank)
+		{
+			fprintf (stderr, "'%i' is not a power of two, try again with a different <p>\n", commsize);
+			usage (argv[0]);
+		}
 		return 1;
 	}
 	
+	// Get n from arguments
 	int n = atoi (argv[1]);
 	
+	// Check n
 	if (n <= 0)
 	{
 		if (!myrank)
+		{
+			fprintf (stderr, "'%i' is not a positive integer, try again with a different <n>\n", n);
 			usage (argv[0]);
+		}
 		return 2;
 	}
 	
@@ -124,7 +170,7 @@ int main (int argc, char **argv)
 	// Distribute indexes
 	scatter_indexes ();
 
-	// Main work
+	// Perform main work
 	worker ();
 
 	// Final work for rank 0
@@ -146,4 +192,5 @@ int main (int argc, char **argv)
 	// Done
 	MPI_Finalize ();
 	return 0;
+#endif
 }
