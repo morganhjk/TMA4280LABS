@@ -73,6 +73,13 @@ int vtest (void)
 ///////////////////////////////////////////////////////////////////////////////
 // Main functions
 ///////////////////////////////////////////////////////////////////////////////
+void usage (char *appname)
+{
+	printf ("usage: %s <n>\n", appname);
+	printf ("where:\n");
+	printf (" <n> is a positive integer (number of iterations)\n");
+}
+
 int main (int argc, char **argv)
 {
 #ifdef UTEST
@@ -80,20 +87,25 @@ int main (int argc, char **argv)
 #elif VTEST
 	return vtest ();
 #else
+	// Check number of arguments
 	if (argc != 2)
 	{
-		printf ("usage: %s n\n", argv[0]);
+		usage (argv[0]);
+		return 0;
+	}
+
+	// Get n from arguments
+	int n = atoi (argv[1]);
+
+	// Check n
+	if (n <= 0)
+	{
+		fprintf (stderr, "'%i' is not a positive integer, try again with a different <n>\n", n);
+		usage (argv[0]);
 		return 1;
 	}
 
-	int n = atoi (argv[1]);
-
-	if (n <= 0)
-	{
-		printf ("n is bullshit, try again with different n (got %i)\n", n);
-		return 2;
-	}
-
+	// Print and exit
 	printf ("%.17f\n", ret (n));
 	return 0;
 #endif
