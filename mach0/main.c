@@ -1,7 +1,13 @@
+///////////////////////////////////////////////////////////////////////////////
+// Includes
+///////////////////////////////////////////////////////////////////////////////
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 
+///////////////////////////////////////////////////////////////////////////////
+// Math functions
+///////////////////////////////////////////////////////////////////////////////
 double machin (int i, double x)
 {
 	double ai = (double) ((2 * i) - 1);
@@ -12,10 +18,10 @@ double machin (int i, double x)
 double integral (int n, double x, double (*f)(int, double))
 {
 	double accum = 0.0;
-	
+
 	for (int i = 1; i <= n; i++)
 		accum += f(i, x);
-	
+
 	return accum;
 }
 
@@ -27,44 +33,61 @@ double ret (int n)
 	return (4.0 * (4.0 * reta - retb));
 }
 
-void utest ()
+///////////////////////////////////////////////////////////////////////////////
+// Test functions
+///////////////////////////////////////////////////////////////////////////////
+int utest (void)
 {
-	int n = 3;
 	double expected = 3.14162102932503462;
-	double computed = 0.0;
-	char *message;
+	double computed = ret (3);
+	char   *message = (expected == computed) ? "OK" : "FAIL";
 
-	computed = ret (n);
+	printf ("mach0 utest: expected=%.17f, computed=%.17f, test=%s\n",
+		expected, computed, message);
 
-	if (expected == computed)
-		message = "OK";
-	else
-		message = "FAIL";
-
-	printf("mach0 utest: expected=%.17f, computed=%.17f, test=%s\n", expected, computed, message);
+	return 0;
 }
 
+int vtest (void)
+{
+	for (int i = 1; i <= 24; i++)
+	{
+		int n = 2 << i;
+		double pi = 3.14159265358979323;
+		double computed = ret (n);
+
+		printf ("mach0 vtest: computed=%.17f, error=%.17f, n=%i\n",
+			computed, (pi - computed), n);
+	}
+
+	return 0;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Main functions
+///////////////////////////////////////////////////////////////////////////////
 int main (int argc, char **argv)
 {
 #ifdef UTEST
-	utest();
-	return 0;
-#endif
-
+	return utest ();
+#elif VTEST
+	return vtest ();
+#else
 	if (argc != 2)
 	{
 		printf ("usage: %s n\n", argv[0]);
 		return 1;
 	}
-	
+
 	int n = atoi (argv[1]);
-	
+
 	if (n <= 0)
 	{
-		printf ("n is bullshit, try again with different n\n");
+		printf ("n is bullshit, try again with different n (got %i)\n", n);
 		return 2;
 	}
-	
+
 	printf ("%.17f\n", ret (n));
 	return 0;
+#endif
 }
