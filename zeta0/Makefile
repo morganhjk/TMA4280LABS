@@ -21,3 +21,4 @@ clean:
 	-rm -f $(TARGET)
 	-rm -f $(TARGET)_utest
 	-rm -f $(TARGET)_vtest
+	-rm -f test-results.txt

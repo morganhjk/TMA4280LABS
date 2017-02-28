@@ -50,16 +50,23 @@ int utest (void)
 
 int vtest (void)
 {
+	FILE *fp = fopen ("test-results.txt", "w");
+
 	for (int i = 1; i <= 24; i++)
 	{
 		int n = 2 << i;
 		double pi = 3.14159265358979323;
 		double computed = ret (n);
+		double error = pi - computed;
 
-		printf ("mach0 vtest: computed=%.17f, error=%.17f, n=%i\n",
-			computed, (pi - computed), n);
+		if (error < 0.0)
+			error = -error;
+
+		fprintf (fp, "mach0 vtest: computed=%.17f, error=%.17f, n=%i\n",
+			computed, error, n);
 	}
 
+	fclose (fp);
 	return 0;
 }
 
