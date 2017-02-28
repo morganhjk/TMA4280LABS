@@ -3,6 +3,15 @@
 #include <math.h>
 #include <mpi.h>
 
+// From/to indexes
+int *gi;	// Global
+int li[2];	// Local
+
+// Vectors
+double *numbersa;
+double *numbersb;
+
+
 double machin (int i, double x)
 {
 	double ai = (double) ((2 * i) - 1);
@@ -21,6 +30,57 @@ double integral (int from, int to, double x, double (*f)(int, double))
 	return accum;
 }
 
+void calculate_indexes (int n, int commsize)
+{
+	// Divide the number of iterations on the number of procs
+	// to get the number of equal-sized parts
+	int parts = n / commsize;
+
+	for (int r = 0, s = 0; r < commsize; r++, s+=2)
+	{
+		// Set 'from' index for the current rank
+		gi[s] = parts * r + 1;
+
+		// Set 'to' index for the current rank
+		if (r != commsize-1)
+			gi[s+1] = parts * (r + 1);
+		else
+		{
+			// Last rank gets the remaining iterations
+			gi[s+1] = n;
+		}
+	}
+}
+
+void scatter_indexes ()
+{
+	// Scatter 'from' and 'to' indexes to all ranks
+	MPI_Scatter (gi, 2, MPI_INT, li, 2, MPI_INT, 0, MPI_COMM_WORLD);
+}
+
+void worker ()
+{
+	// Declare and init local sums
+	double reta = 0.0;
+	double retb = 0.0;
+
+	// Calculate my range of elements
+	reta = integral (li[0], li[1], (1.0 / 5.0), &machin);
+	retb = integral (li[0], li[1], (1.0 / 239.0), &machin);
+
+	// Gather sums from all ranks
+	MPI_Gather (&reta, 1, MPI_DOUBLE, numbersa, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	MPI_Gather (&retb, 1, MPI_DOUBLE, numbersb, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+}
+
+void usage (char *appname)
+{
+	printf ("usage: mpirun -np <p> %s <n>\n", appname);
+	printf ("where:\n");
+	printf (" <p> is a power of two (number of processes)\n");
+	printf (" <n> is a positive integer (number of iterations)\n");
+}
+
 int main (int argc, char **argv)
 {
 	// MPI Init
@@ -34,8 +94,8 @@ int main (int argc, char **argv)
 	if (argc != 2 || ((commsize & (commsize - 1)) != 0))
 	{
 		if (!myrank)
-			printf ("usage: ./zeta1 n, where n is a power of two\n");
-		return 0;
+			usage (argv[0]);
+		return 1;
 	}
 	
 	int n = atoi (argv[1]);
@@ -43,58 +103,50 @@ int main (int argc, char **argv)
 	if (n <= 0)
 	{
 		if (!myrank)
-			printf ("n is bullshit, try again with different n\n");
+			usage (argv[0]);
 		return 2;
 	}
-	
-	// Work some
-	double reta = 0.0;
-	double retb = 0.0;
-	int ndiv = n / commsize;
-	int nrem = n % commsize;
-	int nsize = commsize + (nrem ? 1 : 0);
-	
+
+	// Globals allocation and index generation
 	if (!myrank)
 	{
-		double *numbersa = malloc (nsize * sizeof (double));
-		double *numbersb = malloc (nsize * sizeof (double));
-		
-		numbersa[0] = integral (1, ndiv, (1.0 / 5.0), &machin);
-		numbersb[0] = integral (1, ndiv, (1.0 / 239.0), &machin);
-		
-		if (nrem)
+		// Allocate global indexes
+		gi = malloc (commsize * 2 * sizeof (int));
+
+		// Allocate vectors of elements to sum
+		numbersa = malloc (commsize * sizeof (double));
+		numbersb = malloc (commsize * sizeof (double));
+
+		// Generate indexes
+		calculate_indexes (n, commsize);
+	}
+
+	// Distribute indexes
+	scatter_indexes ();
+
+	// Main work
+	worker ();
+
+	// Final work for rank 0
+	if (!myrank)
+	{
+		// Sum vector elements
+		double suma = 0.0;
+		double sumb = 0.0;
+		for (int i = 0; i < commsize; i++)
 		{
-			numbersa[nsize-1] = integral (ndiv * commsize + 1, ndiv * commsize + nrem, (1.0 / 5.0), &machin);
-			numbersb[nsize-1] = integral (ndiv * commsize + 1, ndiv * commsize + nrem, (1.0 / 239.0), &machin);
+			suma += numbersa[i];
+			sumb += numbersb[i];
 		}
-		
-		for (int i = 1; i < commsize; i++)
-		{
-			MPI_Status s;
-			MPI_Recv (&numbersa[i], 1, MPI_DOUBLE, i, i, MPI_COMM_WORLD, &s);
-			MPI_Recv (&numbersb[i], 1, MPI_DOUBLE, i, i, MPI_COMM_WORLD, &s);
-		}
-		
-		for (int i = 0; i < nsize; i++)
-		{
-			reta += numbersa[i];
-			retb += numbersb[i];
-		}
-		
+
+		// Print
+		printf ("%.17f\n", 4.0 * (4.0 * suma - sumb));
+
+		// Free globals
 		free (numbersa);
 		free (numbersb);
+		free (gi);
 	}
-	else
-	{
-		reta = integral (ndiv * myrank + 1, ndiv * (myrank+1), (1.0 / 5.0), &machin);
-		retb = integral (ndiv * myrank + 1, ndiv * (myrank+1), (1.0 / 239.0), &machin);
-		MPI_Send (&reta, 1, MPI_DOUBLE, 0, myrank, MPI_COMM_WORLD);
-		MPI_Send (&retb, 1, MPI_DOUBLE, 0, myrank, MPI_COMM_WORLD);
-	}
-	
-	// Print
-	if (!myrank)
-		printf ("%.17f\n", 4.0 * (4 * reta - retb));
 	
 	// Done
 	MPI_Finalize ();
