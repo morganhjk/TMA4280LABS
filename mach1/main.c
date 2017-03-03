@@ -110,6 +110,30 @@ void clean (void)
 	free (gi);
 }
 
+double avgtime (double start, double end)
+{
+	// Declare array for all walltimes
+	double times[commsize];
+
+	// Calculate my walltime
+	double time = end - start;
+
+	// Gather walltimes from all ranks
+	MPI_Gather (&time, 1, MPI_DOUBLE, times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+	// Calculate average walltime
+	double avg = 0.0;
+	if (!myrank)
+	{
+		for (int i = 0; i < commsize; i++)
+			avg += times[i];
+
+		avg /= commsize;
+	}
+
+	return avg;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Test functions
 ///////////////////////////////////////////////////////////////////////////////
@@ -130,6 +154,9 @@ int vtest (void)
 	// Main loop
 	for (int i = 1; i <= 24; i++)
 	{
+		// Start time
+		double t1 = MPI_Wtime ();
+
 		// Set n to a power of 2
 		int n = 2 << i;
 
@@ -140,14 +167,20 @@ int vtest (void)
 		// Perform work
 		worker ();
 
+		// End time
+		double t2 = MPI_Wtime ();
+
+		// Average time across procs (returns sensible result only on rank 0)
+		double tavg = avgtime (t1, t2);
+
 		// Get computed value and calculate error, then write to log
 		if (!myrank)
 		{
 			double computed = ret ();
 			double error = fabs (M_PI - computed);
 
-			fprintf (log, "%s p=%i: computed=%.20f, error=%.20f, n=%i\n",
-					 test_name, commsize, computed, error, n);
+			fprintf (log, "%s p=%i: computed=%.20f, error=%.20f, time=%.20f, n=%i\n",
+					 test_name, commsize, computed, error, tavg, n);
 		}
 	}
 
