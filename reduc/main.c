@@ -85,13 +85,44 @@ void worker ()
 double reducesum (int myrank, int commsize)
 {
 #ifdef MPISUM
+	// Unused
 	(void)(myrank);
 	(void)(commsize);
+	
+	// Calculate sum using allreduce
 	double sum = 0.0;
 	MPI_Allreduce (&mycalculation, &sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 	return sum;
 #elif RECURSIVE
-	return 2.0;
+	// Variables
+	double sum = mycalculation;
+	double recdat = 0.0;
+	int sendto;
+	MPI_Status stat;
+	
+	// Run for log n steps
+	for (int step = 1; step < commsize; step = step << 1)
+	{
+		// If we're odd, exchange with previous, if not, exchange with next
+		if ((myrank / step) & 0x01)
+			sendto = myrank - step;
+		else
+			sendto = myrank + step;
+		
+		// Wrap-around
+		sendto = sendto % commsize;
+		
+		// Exchange
+		MPI_Sendrecv (&sum, 1, MPI_DOUBLE, sendto, 0,
+						&recdat, 1, MPI_DOUBLE, sendto, 0,
+						MPI_COMM_WORLD, &stat);
+		
+		// Add to sum
+		sum += recdat;
+	}
+	
+	// Done
+	return sum;
 #else
 	// Gather sums from all ranks
 	MPI_Gather (&mycalculation, 1, MPI_DOUBLE, numbers, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
