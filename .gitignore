@@ -14,8 +14,8 @@ mach1/mach1*
 zeta0/zeta0*
 zeta1/zeta1*
 
-# Test results
-test-results.txt
+# Verification test results
+vtest.txt
 
 
 # Created by https://www.gitignore.io/api/c++,linux,vim
