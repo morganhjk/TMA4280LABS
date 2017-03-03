@@ -21,38 +21,44 @@ int nthreads = 1;
 int *gi;	// Global
 int li[2];	// Local
 
-// Vector
-double *numbers;
+// Vectors
+double *numbersa;
+double *numbersb;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Math functions
 ///////////////////////////////////////////////////////////////////////////////
-double zeta (int i)
+double machin (int i, double x)
 {
-	double di = (double) i;
-	return 1.0 / (di * di);
+	double ai = (double) ((2 * i) - 1);
+	double frac = pow (x, ai) / ai;
+	return ((i-1) % 2) ? (-1.0 * frac) : frac;
 }
 
-double integral (int from, int to, double (*f)(int))
+double integral (int from, int to, double x, double (*f)(int, double))
 {
 	double accum = 0.0;
 
 	if (from && to)
 #pragma omp parallel for num_threads(nthreads) schedule(static) reduction(+:accum)
 		for (int i = from; i <= to; i++)
-			accum += f(i);
+			accum += f(i, x);
 
 	return accum;
 }
 
 double ret (void)
 {
-	double accum = 0.0;
+	double accuma = 0.0;
+	double accumb = 0.0;
 
 	for (int i = 0; i < commsize; i++)
-		accum += numbers[i];
+	{
+		accuma += numbersa[i];
+		accumb += numbersb[i];
+	}
 
-	return sqrt (accum * 6.0);
+	return 4.0 * (4.0 * accuma - accumb);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -63,8 +69,9 @@ void init (int n)
 	// Allocate global indexes
 	gi = malloc (commsize * 2 * sizeof (int));
 
-	// Allocate vector of elements to sum
-	numbers = malloc (commsize * sizeof (double));
+	// Allocate vectors of elements to sum
+	numbersa = malloc (commsize * sizeof (double));
+	numbersb = malloc (commsize * sizeof (double));
 
 	// Divide the number of iterations on the number of procs
 	// to get the number of equal-sized parts
@@ -86,22 +93,25 @@ void init (int n)
 	}
 }
 
-void worker (void)
+void worker ()
 {
 	// Scatter 'from' and 'to' indexes to all ranks
 	MPI_Scatter (gi, 2, MPI_INT, li, 2, MPI_INT, 0, MPI_COMM_WORLD);
 
-	// Calculate my range of elements (local sum)
-	double lsum = integral (li[0], li[1], &zeta);
+	// Calculate my range of elements (local sums)
+	double lsuma = integral (li[0], li[1], (1.0 / 5.0), &machin);
+	double lsumb = integral (li[0], li[1], (1.0 / 239.0), &machin);
 
 	// Gather sums from all ranks
-	MPI_Gather (&lsum, 1, MPI_DOUBLE, numbers, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	MPI_Gather (&lsuma, 1, MPI_DOUBLE, numbersa, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	MPI_Gather (&lsumb, 1, MPI_DOUBLE, numbersb, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 }
 
 void clean (void)
 {
 	// Free globals
-	free (numbers);
+	free (numbersa);
+	free (numbersb);
 	free (gi);
 }
 
@@ -111,7 +121,7 @@ void clean (void)
 int vtest (void)
 {
 	// Test name and paths to log file
-	char *test_name = "zeta1 vtest";
+	char *test_name = "mach1 vtest";
 	char *log_rel_path = "vtest.txt";
 	char *log_abs_path;
 
@@ -142,7 +152,7 @@ int vtest (void)
 			double error = fabs (M_PI - computed);
 
 			fprintf (log, "%s p=%i: computed=%.20f, error=%.20f, n=%i\n",
-				test_name, commsize, computed, error, n);
+					 test_name, commsize, computed, error, n);
 		}
 	}
 
