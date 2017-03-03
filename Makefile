@@ -21,6 +21,8 @@ utest:
 vtest:
 	@$(MSC) zeta0 vtest
 	@$(MSC) mach0 vtest
+	@$(MSC) zeta1 vtest
+	@$(MSC) mach1 vtest
 
 clean:
 	@$(MSC) zeta0 clean

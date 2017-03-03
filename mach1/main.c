@@ -9,6 +9,10 @@
 ///////////////////////////////////////////////////////////////////////////////
 // Global variables
 ///////////////////////////////////////////////////////////////////////////////
+// Size and rank
+int commsize;
+int myrank;
+
 // From/to indexes
 int *gi;	// Global
 int li[2];	// Local
@@ -30,19 +34,40 @@ double machin (int i, double x)
 double integral (int from, int to, double x, double (*f)(int, double))
 {
 	double accum = 0.0;
-	
+
 	if (from && to)
 		for (int i = from; i <= to; i++)
 			accum += f(i, x);
-	
+
 	return accum;
+}
+
+double ret (void)
+{
+	double accuma = 0.0;
+	double accumb = 0.0;
+
+	for (int i = 0; i < commsize; i++)
+	{
+		accuma += numbersa[i];
+		accumb += numbersb[i];
+	}
+
+	return 4.0 * (4.0 * accuma - accumb);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // MPI functions
 ///////////////////////////////////////////////////////////////////////////////
-void calculate_indexes (int n, int commsize)
+void init (int n)
 {
+	// Allocate global indexes
+	gi = malloc (commsize * 2 * sizeof (int));
+
+	// Allocate vectors of elements to sum
+	numbersa = malloc (commsize * sizeof (double));
+	numbersb = malloc (commsize * sizeof (double));
+
 	// Divide the number of iterations on the number of procs
 	// to get the number of equal-sized parts
 	int parts = n / commsize;
@@ -63,25 +88,26 @@ void calculate_indexes (int n, int commsize)
 	}
 }
 
-void scatter_indexes ()
+void worker ()
 {
 	// Scatter 'from' and 'to' indexes to all ranks
 	MPI_Scatter (gi, 2, MPI_INT, li, 2, MPI_INT, 0, MPI_COMM_WORLD);
-}
 
-void worker ()
-{
-	// Declare and init local sums
-	double reta = 0.0;
-	double retb = 0.0;
-
-	// Calculate my range of elements
-	reta = integral (li[0], li[1], (1.0 / 5.0), &machin);
-	retb = integral (li[0], li[1], (1.0 / 239.0), &machin);
+	// Calculate my range of elements (local sums)
+	double lsuma = integral (li[0], li[1], (1.0 / 5.0), &machin);
+	double lsumb = integral (li[0], li[1], (1.0 / 239.0), &machin);
 
 	// Gather sums from all ranks
-	MPI_Gather (&reta, 1, MPI_DOUBLE, numbersa, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-	MPI_Gather (&retb, 1, MPI_DOUBLE, numbersb, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	MPI_Gather (&lsuma, 1, MPI_DOUBLE, numbersa, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	MPI_Gather (&lsumb, 1, MPI_DOUBLE, numbersb, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+}
+
+void clean (void)
+{
+	// Free globals
+	free (numbersa);
+	free (numbersb);
+	free (gi);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -89,11 +115,55 @@ void worker ()
 ///////////////////////////////////////////////////////////////////////////////
 int vtest (void)
 {
-	FILE *fp = fopen ("test-results.txt", "w");
+	// Test name and paths to log file
+	char *test_name = "mach1 vtest";
+	char *log_rel_path = "vtest.txt";
+	char *log_abs_path;
 
-	// test stuff
+	// Pointer to log file
+	FILE *log = NULL;
 
-	fclose (fp);
+	// Open log file for writing (append mode)
+	if (!myrank)
+		log = fopen (log_rel_path, "a");
+
+	// Main loop
+	for (int i = 1; i <= 24; i++)
+	{
+		// Set n to a power of 2
+		int n = 2 << i;
+
+		// Allocate globals and generate indexes
+		if (!myrank)
+			init (n);
+
+		// Perform work
+		worker ();
+
+		// Get computed value and calculate error, then write to log
+		if (!myrank)
+		{
+			double computed = ret ();
+			double error = fabs (M_PI - computed);
+
+			fprintf (log, "%s p=%i: computed=%.20f, error=%.20f, n=%i\n",
+					 test_name, commsize, computed, error, n);
+		}
+	}
+
+	if (!myrank)
+	{
+		// Close log file
+		fclose (log);
+
+		// Get absolute path to log file and print
+		log_abs_path = realpath (log_rel_path, NULL);
+		printf ("%s p=%i results written to: %s\n", test_name, commsize, log_abs_path);
+		free (log_abs_path);
+	}
+
+	// Done
+	MPI_Finalize ();
 	return 0;
 }
 
@@ -110,16 +180,19 @@ void usage (char *appname)
 
 int main (int argc, char **argv)
 {
-#ifdef VTEST
-	return vtest ();
-#else
 	// MPI Init
-	int commsize;
-	int myrank;
-	MPI_Init (0, 0);
+	MPI_Init (&argc, &argv);
 	MPI_Comm_size (MPI_COMM_WORLD, &commsize);
 	MPI_Comm_rank (MPI_COMM_WORLD, &myrank);
 
+#ifdef VTEST
+	// Check commsize
+	if (((commsize & (commsize - 1)) != 0))
+		return 1;
+
+	// Perform verification test
+	return vtest ();
+#else
 	// Check number of arguments
 	if (argc != 2)
 	{
@@ -138,7 +211,7 @@ int main (int argc, char **argv)
 		}
 		return 1;
 	}
-	
+
 	// Get n from arguments
 	int n = atoi (argv[1]);
 
@@ -153,47 +226,20 @@ int main (int argc, char **argv)
 		return 2;
 	}
 
-	// Globals allocation and index generation
+	// Allocate globals and generate indexes
 	if (!myrank)
-	{
-		// Allocate global indexes
-		gi = malloc (commsize * 2 * sizeof (int));
+		init (n);
 
-		// Allocate vectors of elements to sum
-		numbersa = malloc (commsize * sizeof (double));
-		numbersb = malloc (commsize * sizeof (double));
-
-		// Generate indexes
-		calculate_indexes (n, commsize);
-	}
-
-	// Distribute indexes
-	scatter_indexes ();
-
-	// Perform main work
+	// Perform work
 	worker ();
 
-	// Final work for rank 0
+	// Final work, print, and cleanup
 	if (!myrank)
 	{
-		// Sum vector elements
-		double suma = 0.0;
-		double sumb = 0.0;
-		for (int i = 0; i < commsize; i++)
-		{
-			suma += numbersa[i];
-			sumb += numbersb[i];
-		}
-
-		// Print
-		printf ("%.17f\n", 4.0 * (4.0 * suma - sumb));
-
-		// Free globals
-		free (numbersa);
-		free (numbersb);
-		free (gi);
+		printf ("%.20f\n", ret ());
+		clean ();
 	}
-	
+
 	// Done
 	MPI_Finalize ();
 	return 0;
