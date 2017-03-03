@@ -9,6 +9,10 @@
 ///////////////////////////////////////////////////////////////////////////////
 // Global variables
 ///////////////////////////////////////////////////////////////////////////////
+// Size and rank
+int commsize;
+int myrank;
+
 // From/to indexes
 int *gi;	// Global
 int li[2];	// Local
@@ -22,12 +26,6 @@ double mycalculation;
 ///////////////////////////////////////////////////////////////////////////////
 // Math functions
 ///////////////////////////////////////////////////////////////////////////////
-/*
-	S = pi^2 / 6
-	S * 6 = pi^2
-	sqrt (6S) = pi
-*/
-
 double zeta (int i)
 {
 	double di = (double) i;
@@ -37,19 +35,30 @@ double zeta (int i)
 double integral (int from, int to, double (*f)(int))
 {
 	double accum = 0.0;
-	
+
 	if (from && to)
 		for (int i = from; i <= to; i++)
 			accum += f(i);
-	
+
 	return accum;
+}
+
+double ret (double sum)
+{
+	return sqrt (sum * 6.0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // MPI functions
 ///////////////////////////////////////////////////////////////////////////////
-void calculate_indexes (int n, int commsize)
+void init (int n)
 {
+	// Allocate global indexes
+	gi = malloc (commsize * 2 * sizeof (int));
+
+	// Allocate vector of elements to sum
+	numbers = malloc (commsize * sizeof (double));
+
 	// Divide the number of iterations on the number of procs
 	// to get the number of equal-sized parts
 	int parts = n / commsize;
@@ -58,7 +67,7 @@ void calculate_indexes (int n, int commsize)
 	{
 		// Set 'from' index for the current rank
 		gi[s] = parts * r + 1;
-		
+
 		// Set 'to' index for the current rank
 		if (r != commsize-1)
 			gi[s+1] = parts * (r + 1);
@@ -70,25 +79,18 @@ void calculate_indexes (int n, int commsize)
 	}
 }
 
-void scatter_indexes ()
+void worker (void)
 {
 	// Scatter 'from' and 'to' indexes to all ranks
 	MPI_Scatter (gi, 2, MPI_INT, li, 2, MPI_INT, 0, MPI_COMM_WORLD);
-}
 
-void worker ()
-{
-	// Calculate my range of elements
+	// Calculate my range of elements (local sum)
 	mycalculation = integral (li[0], li[1], &zeta);
 }
 
-double reducesum (int myrank, int commsize)
+double reducesum (void)
 {
 #ifdef MPISUM
-	// Unused
-	(void)(myrank);
-	(void)(commsize);
-	
 	// Calculate sum using allreduce
 	double sum = 0.0;
 	MPI_Allreduce (&mycalculation, &sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -99,7 +101,7 @@ double reducesum (int myrank, int commsize)
 	double recdat = 0.0;
 	int sendto;
 	MPI_Status stat;
-	
+
 	// Run for log n steps
 	for (int step = 1; step < commsize; step = step << 1)
 	{
@@ -108,49 +110,67 @@ double reducesum (int myrank, int commsize)
 			sendto = myrank - step;
 		else
 			sendto = myrank + step;
-		
+
 		// Wrap-around
 		sendto = sendto % commsize;
-		
+
 		// Exchange
 		MPI_Sendrecv (&sum, 1, MPI_DOUBLE, sendto, 0,
 						&recdat, 1, MPI_DOUBLE, sendto, 0,
 						MPI_COMM_WORLD, &stat);
-		
+
 		// Add to sum
 		sum += recdat;
 	}
-	
+
 	// Done
 	return sum;
 #else
 	// Gather sums from all ranks
 	MPI_Gather (&mycalculation, 1, MPI_DOUBLE, numbers, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-	
+
 	// Sum vector elements
 	double sum = 0.0;
-	
+
 	if (!myrank)
 	{
 		for (int i = 0; i < commsize; i++)
 			sum += numbers[i];
 	}
-	
+
 	return sum;
 #endif
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Test functions
-///////////////////////////////////////////////////////////////////////////////
-int vtest (void)
+void clean (void)
 {
-	FILE *fp = fopen ("test-results.txt", "w");
+	// Free globals
+	free (numbers);
+	free (gi);
+}
 
-	// test stuff
-	
-	fclose (fp);
-	return 0;
+double avgtime (double start, double end)
+{
+	// Declare array for all walltimes
+	double times[commsize];
+
+	// Calculate my walltime
+	double time = end - start;
+
+	// Gather walltimes from all ranks
+	MPI_Gather (&time, 1, MPI_DOUBLE, times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+	// Calculate average walltime
+	double avg = 0.0;
+	if (!myrank)
+	{
+		for (int i = 0; i < commsize; i++)
+			avg += times[i];
+
+		avg /= commsize;
+	}
+
+	return avg;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -166,13 +186,8 @@ void usage (char *appname)
 
 int main (int argc, char **argv)
 {
-#ifdef VTEST
-	return vtest ();
-#else
 	// MPI Init
-	int commsize;
-	int myrank;
-	MPI_Init (0, 0);
+	MPI_Init (&argc, &argv);
 	MPI_Comm_size (MPI_COMM_WORLD, &commsize);
 	MPI_Comm_rank (MPI_COMM_WORLD, &myrank);
 
@@ -194,10 +209,10 @@ int main (int argc, char **argv)
 		}
 		return 1;
 	}
-	
+
 	// Get n from arguments
 	int n = atoi (argv[1]);
-	
+
 	// Check n
 	if (n <= 0)
 	{
@@ -208,42 +223,34 @@ int main (int argc, char **argv)
 		}
 		return 2;
 	}
-	
-	// Globals allocation and index generation
+
+	// Start time
+	double t1 = MPI_Wtime ();
+
+	// Allocate globals and generate indexes
 	if (!myrank)
-	{
-		// Allocate global indexes
-		gi = malloc (commsize * 2 * sizeof (int));
+		init (n);
 
-		// Allocate vector of elements to sum
-		numbers = malloc (commsize * sizeof (double));
-
-		// Generate indexes
-		calculate_indexes (n, commsize);
-	}
-
-	// Distribute indexes
-	scatter_indexes ();
-
-	// Perform main work
+	// Perform work
 	worker ();
-	
-	// Reduce each process process partial sum to one
-	double sum = reducesum (myrank, commsize);
 
-	// Final work for rank 0
+	// Reduce each process partial sum to one
+	double sum = reducesum ();
+
+	// End time
+	double t2 = MPI_Wtime ();
+
+	// Average time across procs (returns sensible result only on rank 0)
+	double tavg = avgtime (t1, t2);
+
+	// Final work, print, and cleanup
 	if (!myrank)
 	{
-		// Print
-		printf ("%.17f\n", sqrt (sum * 6.0));
-
-		// Free globals
-		free (numbers);
-		free (gi);
+		printf ("computed=%.20f, time=%.20f\n", ret (sum), tavg);
+		clean ();
 	}
-	
+
 	// Done
 	MPI_Finalize ();
 	return 0;
-#endif
 }
