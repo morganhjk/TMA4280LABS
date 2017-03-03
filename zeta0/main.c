@@ -26,7 +26,7 @@ double integral (int n, double (*f)(int))
 
 double ret (int n)
 {
-	return (sqrt (integral (n, &zeta) * 6.0));
+	return sqrt (integral (n, &zeta) * 6.0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -34,35 +34,57 @@ double ret (int n)
 ///////////////////////////////////////////////////////////////////////////////
 int utest (void)
 {
-	double expected = 2.85773803324704145;
+	// Test name
+	char *test_name = "zeta0 utest";
+
+	// Set expected value and get computed value
+	double expected = 2.85773803324704145368;
 	double computed = ret (3);
-	char   *message = (expected == computed) ? "OK" : "FAIL";
 
-	printf ("zeta0 utest: expected=%.17f, computed=%.17f, test=%s\n",
-		expected, computed, message);
+	// Set test message
+	char *message = (expected == computed) ? "OK" : "FAIL";
 
+	// Print results
+	printf ("%s: expected=%.20f, computed=%.20f, test=%s\n",
+		test_name, expected, computed, message);
+
+	// Done
 	return 0;
 }
 
 int vtest (void)
 {
-	FILE *fp = fopen ("test-results.txt", "w");
+	// Test name and relative path to log file
+	char *test_name = "zeta0 vtest";
+	char *log_rel_path = "vtest.txt";
 
+	// Open log file for writing
+	FILE *log = fopen (log_rel_path, "w");
+
+	// Main loop
 	for (int i = 1; i <= 24; i++)
 	{
+		// Set n to a power of 2
 		int n = 2 << i;
-		double pi = 3.14159265358979323;
+
+		// Get computed value and calculate error
 		double computed = ret (n);
-		double error = pi - computed;
+		double error = fabs (M_PI - computed);
 
-		if (error < 0.0)
-			error = -error;
-
-		fprintf (fp, "zeta0 vtest: computed=%.17f, error=%.17f, n=%i\n",
-			computed, error, n);
+		// Write to log
+		fprintf (log, "%s: computed=%.20f, error=%.20f, n=%i\n",
+			test_name, computed, error, n);
 	}
 
-	fclose (fp);
+	// Close log file
+	fclose (log);
+
+	// Get absolute path to log file and print
+	char *log_abs_path = realpath (log_rel_path, NULL);
+	printf ("%s results written to: %s\n", test_name, log_abs_path);
+
+	// Done
+	free (log_abs_path);
 	return 0;
 }
 
@@ -76,10 +98,10 @@ void usage (char *appname)
 	printf (" <n> is a positive integer (number of iterations)\n");
 }
 
-int main (int argc, char **argv)
+int main (__attribute__ ((unused)) int argc, __attribute__ ((unused)) char **argv)
 {
 #ifdef UTEST
-	return utest();
+	return utest ();
 #elif VTEST
 	return vtest ();
 #else
@@ -102,7 +124,7 @@ int main (int argc, char **argv)
 	}
 
 	// Print and exit
-	printf ("%.17f\n", ret (n));
+	printf ("%.20f\n", ret (n));
 	return 0;
 #endif
 }

@@ -1,24 +1,26 @@
-TARGET=zeta0
+PROG=zeta0
+COMP=gcc
+FLAG=-lm -std=gnu11 -Wall -Wextra -Wpedantic
 
 .PHONY: utest vtest clean
 
-$(TARGET): main.c
-	gcc -o $@ $^ -lm
+$(PROG): main.c
+	$(COMP) -o $@ $^ $(FLAG)
 
-$(TARGET)_utest: main.c
-	gcc -o $@ $^ -lm -DUTEST
+$(PROG)_utest: main.c
+	$(COMP) -o $@ $^ $(FLAG) -DUTEST
 
-$(TARGET)_vtest: main.c
-	gcc -o $@ $^ -lm -DVTEST
+$(PROG)_vtest: main.c
+	$(COMP) -o $@ $^ $(FLAG) -DVTEST
 
-utest: $(TARGET)_utest
-	./$(TARGET)_utest
+utest: $(PROG)_utest
+	./$<
 
-vtest: $(TARGET)_vtest
-	./$(TARGET)_vtest
+vtest: $(PROG)_vtest
+	./$<
 
 clean:
-	-rm -f $(TARGET)
-	-rm -f $(TARGET)_utest
-	-rm -f $(TARGET)_vtest
-	-rm -f test-results.txt
+	-rm -f $(PROG)
+	-rm -f $(PROG)_utest
+	-rm -f $(PROG)_vtest
+	-rm -f vtest.txt
