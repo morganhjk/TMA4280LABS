@@ -54,9 +54,10 @@ int utest (void)
 
 int vtest (void)
 {
-	// Test name and relative path to log file
+	// Test name and paths to log file
 	char *test_name = "zeta0 vtest";
 	char *log_rel_path = "vtest.txt";
+	char *log_abs_path;
 
 	// Open log file for writing
 	FILE *log = fopen (log_rel_path, "w");
@@ -80,11 +81,11 @@ int vtest (void)
 	fclose (log);
 
 	// Get absolute path to log file and print
-	char *log_abs_path = realpath (log_rel_path, NULL);
+	log_abs_path = realpath (log_rel_path, NULL);
 	printf ("%s results written to: %s\n", test_name, log_abs_path);
+	free (log_abs_path);
 
 	// Done
-	free (log_abs_path);
 	return 0;
 }
 
