@@ -11,8 +11,11 @@ compile_commands.json
 # Targets
 mach0/mach0*
 mach1/mach1*
+mach2/mach2*
 zeta0/zeta0*
 zeta1/zeta1*
+mach2/mach2*
+reduc/reduc*
 
 # Verification test results
 vtest.txt
