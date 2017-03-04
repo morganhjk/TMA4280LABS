@@ -1,31 +1,45 @@
 MSC=$(MAKE) -s -C
 
-.PHONY: zeta0 zeta1 mach0 mach1 utest vtest clean
+.PHONY: zeta0 zeta1 zeta2 mach0 mach1 mach2 reduc utest vtest clean
 
 zeta0:
-	@$(MSC) zeta0
+	@$(MSC) $@
 
 zeta1:
-	@$(MSC) zeta1
+	@$(MSC) $@
+
+zeta2:
+	@$(MSC) $@
 
 mach0:
-	@$(MSC) mach0
+	@$(MSC) $@
 
 mach1:
-	@$(MSC) mach1
+	@$(MSC) $@
+
+mach2:
+	@$(MSC) $@
+
+reduc:
+	@$(MSC) $@
 
 utest:
-	@$(MSC) zeta0 utest
-	@$(MSC) mach0 utest
+	@$(MSC) zeta0 $@
+	@$(MSC) mach0 $@
 
 vtest:
-	@$(MSC) zeta0 vtest
-	@$(MSC) mach0 vtest
-	@$(MSC) zeta1 vtest
-	@$(MSC) mach1 vtest
+	@$(MSC) zeta0 $@
+	@$(MSC) zeta1 $@
+	@$(MSC) zeta2 $@
+	@$(MSC) mach0 $@
+	@$(MSC) mach1 $@
+	@$(MSC) mach2 $@
 
 clean:
-	@$(MSC) zeta0 clean
-	@$(MSC) zeta1 clean
-	@$(MSC) mach0 clean
-	@$(MSC) mach1 clean
+	@$(MSC) zeta0 $@
+	@$(MSC) zeta1 $@
+	@$(MSC) zeta2 $@
+	@$(MSC) mach0 $@
+	@$(MSC) mach1 $@
+	@$(MSC) mach2 $@
+	@$(MSC) reduc $@

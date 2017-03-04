@@ -117,7 +117,7 @@ int main (__attribute__ ((unused)) int argc, __attribute__ ((unused)) char **arg
 		return 0;
 	}
 
-	// Get n from arguments
+	// Get number of iterations (n)
 	int n = atoi (argv[1]);
 
 	// Check n

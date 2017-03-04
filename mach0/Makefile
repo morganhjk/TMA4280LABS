@@ -1,26 +1,29 @@
-PROG=mach0
-COMP=gcc
-FLAG=-lm -std=gnu11 -Wall -Wextra -Wpedantic
+PROG0=mach0
+PROG1=$(PROG0)_utest
+PROG2=$(PROG0)_vtest
+
+CC=gcc
+CFLAGS=-lm -std=gnu11 -Wall -Wextra -Wpedantic
 
 .PHONY: utest vtest clean
 
-$(PROG): main.c
-	$(COMP) -o $@ $^ $(FLAG)
+$(PROG0): main.c
+	$(CC) -o $@ $^ $(CFLAGS)
 
-$(PROG)_utest: main.c
-	$(COMP) -o $@ $^ $(FLAG) -DUTEST
+$(PROG1): main.c
+	$(CC) -o $@ $^ $(CFLAGS) -DUTEST
 
-$(PROG)_vtest: main.c
-	$(COMP) -o $@ $^ $(FLAG) -DVTEST
+$(PROG2): main.c
+	$(CC) -o $@ $^ $(CFLAGS) -DVTEST
 
-utest: $(PROG)_utest
+utest: $(PROG1)
 	./$<
 
-vtest: $(PROG)_vtest
+vtest: $(PROG2)
 	./$<
 
 clean:
-	-rm -f $(PROG)
-	-rm -f $(PROG)_utest
-	-rm -f $(PROG)_vtest
+	-rm -f $(PROG0)
+	-rm -f $(PROG1)
+	-rm -f $(PROG2)
 	-rm -f vtest.txt

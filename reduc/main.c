@@ -210,7 +210,7 @@ int main (int argc, char **argv)
 		return 1;
 	}
 
-	// Get n from arguments
+	// Get number of iterations (n)
 	int n = atoi (argv[1]);
 
 	// Check n

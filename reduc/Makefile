@@ -1,23 +1,35 @@
-TARGET=reduc
+PROG0=reduc
+PROG1=$(PROG0)_mpisum
+PROG2=$(PROG0)_recursive
 
-.PHONY: mpisum recursive clean
+CC=mpicc
+CFLAGS=-lm -std=gnu11 -Wall -Wextra -Wpedantic
 
-$(TARGET): main.c
-	mpicc -o $@ $^ -lm -std=c99 -Wall -Wextra -Wpedantic
+.PHONY: all test clean
 
-$(TARGET)_mpisum: main.c
-	mpicc -o $@ $^ -lm -std=c99 -Wall -Wextra -DMPISUM
+all: $(PROG0) $(PROG1) $(PROG2)
 
-$(TARGET)_recursive: main.c
-	mpicc -o $@ $^ -lm -std=c99 -Wall -Wextra -DRECURSIVE
+$(PROG0): main.c
+	$(CC) -o $@ $^ $(CFLAGS)
 
-mpisum: $(TARGET)_mpisum
-	#./$(TARGET)_mpisum
+$(PROG1): main.c
+	$(CC) -o $@ $^ $(CFLAGS) -DMPISUM
 
-recursive: $(TARGET)_recursive
-	#./$(TARGET)_recursive
+$(PROG2): main.c
+	$(CC) -o $@ $^ $(CFLAGS) -DRECURSIVE
+
+test: $(PROG0) $(PROG1) $(PROG2)
+	mpirun -np 2 $(PROG0) $(N)
+	mpirun -np 4 $(PROG0) $(N)
+	mpirun -np 8 $(PROG0) $(N)
+	mpirun -np 2 $(PROG1) $(N)
+	mpirun -np 4 $(PROG1) $(N)
+	mpirun -np 8 $(PROG1) $(N)
+	mpirun -np 2 $(PROG2) $(N)
+	mpirun -np 4 $(PROG2) $(N)
+	mpirun -np 8 $(PROG2) $(N)
 
 clean:
-	-rm -f $(TARGET)
-	-rm -f $(TARGET)_mpisum
-	-rm -f $(TARGET)_recursive
+	-rm -f $(PROG0)
+	-rm -f $(PROG1)
+	-rm -f $(PROG2)

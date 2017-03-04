@@ -115,13 +115,37 @@ void clean (void)
 	free (gi);
 }
 
+double avgtime (double start, double end)
+{
+	// Declare array for all walltimes
+	double times[commsize];
+
+	// Calculate my walltime
+	double time = end - start;
+
+	// Gather walltimes from all ranks
+	MPI_Gather (&time, 1, MPI_DOUBLE, times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+	// Calculate average walltime
+	double avg = 0.0;
+	if (!myrank)
+	{
+		for (int i = 0; i < commsize; i++)
+			avg += times[i];
+
+		avg /= commsize;
+	}
+
+	return avg;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Test functions
 ///////////////////////////////////////////////////////////////////////////////
 int vtest (void)
 {
 	// Test name and paths to log file
-	char *test_name = "mach1 vtest";
+	char *test_name = "mach2 vtest";
 	char *log_rel_path = "vtest.txt";
 	char *log_abs_path;
 
@@ -133,26 +157,40 @@ int vtest (void)
 		log = fopen (log_rel_path, "a");
 
 	// Main loop
-	for (int i = 1; i <= 24; i++)
+	for (int i = 0; i <= 3; i++)
 	{
-		// Set n to a power of 2
-		int n = 2 << i;
+		nthreads = pow (2, i);
 
-		// Allocate globals and generate indexes
-		if (!myrank)
-			init (n);
-
-		// Perform work
-		worker ();
-
-		// Get computed value and calculate error, then write to log
-		if (!myrank)
+		for (int i = 1; i <= 24; i++)
 		{
-			double computed = ret ();
-			double error = fabs (M_PI - computed);
+			// Start time
+			double t1 = MPI_Wtime ();
 
-			fprintf (log, "%s p=%i: computed=%.20f, error=%.20f, n=%i\n",
-					 test_name, commsize, computed, error, n);
+			// Set n to a power of 2
+			int n = 2 << i;
+
+			// Allocate globals and generate indexes
+			if (!myrank)
+				init (n);
+
+			// Perform work
+			worker ();
+
+			// End time
+			double t2 = MPI_Wtime ();
+
+			// Average time across procs (returns sensible result only on rank 0)
+			double tavg = avgtime (t1, t2);
+
+			// Get computed value and calculate error, then write to log
+			if (!myrank)
+			{
+				double computed = ret ();
+				double error = fabs (M_PI - computed);
+
+				fprintf (log, "%s p=%i t=%i: computed=%.20f, error=%.20f, time=%.20f, n=%i\n",
+						 test_name, commsize, nthreads, computed, error, tavg, n);
+			}
 		}
 	}
 
@@ -218,7 +256,7 @@ int main (int argc, char **argv)
 		return 1;
 	}
 
-	// Get n from arguments
+	// Get number of iterations (n)
 	int n = atoi (argv[1]);
 
 	// Check n
@@ -232,18 +270,18 @@ int main (int argc, char **argv)
 		return 2;
 	}
 
-	// Get number of threads
+	// Get number of threads (nthreads)
 	nthreads = atoi (argv[2]);
 
-	// Check n
+	// Check nthreads
 	if (nthreads <= 0)
 	{
 		if (!myrank)
 		{
-			fprintf (stderr, "'%i' is not a positive integer, try again with a different <n>\n", nthreads);
+			fprintf (stderr, "'%i' is not a positive integer, try again with a different <t>\n", nthreads);
 			usage (argv[0]);
 		}
-		return 2;
+		return 3;
 	}
 
 	// Allocate globals and generate indexes
