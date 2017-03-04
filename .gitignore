@@ -19,6 +19,7 @@ reduc/reduc*
 
 # Verification test results
 vtest.txt
+lille-*.txt
 
 
 # Created by https://www.gitignore.io/api/c++,linux,vim
