@@ -161,13 +161,13 @@ int vtest (void)
 	{
 		nthreads = pow (2, i);
 
-		for (int i = 1; i <= 24; i++)
+		for (int j = 1; j <= 24; j++)
 		{
 			// Start time
 			double t1 = MPI_Wtime ();
 
 			// Set n to a power of 2
-			int n = 2 << i;
+			int n = 2 << j;
 
 			// Allocate globals and generate indexes
 			if (!myrank)
