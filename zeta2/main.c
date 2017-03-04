@@ -142,22 +142,28 @@ int vtest (void)
 	// Pointer to log file
 	FILE *log = NULL;
 
+	// Helper table for LaTeX
+#ifdef TEXERROR
+	double errtable[3][24];
+	double timtable[3][24];
+#endif
+
 	// Open log file for writing (append mode)
 	if (!myrank)
 		log = fopen (log_rel_path, "a");
 
 	// Main loop
-	for (int i = 0; i <= 3; i++)
+	for (int i = 1; i <= 3; i++)
 	{
 		nthreads = pow (2, i);
 
-		for (int i = 1; i <= 24; i++)
+		for (int j = 1; j <= 24; j++)
 		{
 			// Start time
 			double t1 = MPI_Wtime ();
 
 			// Set n to a power of 2
-			int n = 2 << i;
+			int n = 2 << j;
 
 			// Allocate globals and generate indexes
 			if (!myrank)
@@ -178,11 +184,26 @@ int vtest (void)
 				double computed = ret ();
 				double error = fabs (M_PI - computed);
 
+#ifdef TEXERROR
+            	errtable[i-1][j-1] = error;
+            	timtable[i-1][j-1] = tavg;
+#else
 				fprintf (log, "%s p=%i t=%i: computed=%.20f, error=%.20f, time=%.20f, n=%i\n",
 						 test_name, commsize, nthreads, computed, error, tavg, n);
+#endif
 			}
 		}
 	}
+
+#ifdef TEXERROR
+	for (int j = 1; j <= 24; j++)
+		fprintf (log, "\t\t%i\t& %.20f & %.20f & %.20f \\\\\n",
+			2 << j, errtable[0][j-1], errtable[1][j-1], errtable[2][j-1]);
+	
+	for (int j = 1; j <= 24; j++)
+		fprintf (log, "\t\t%i\t& %.20f & %.20f & %.20f \\\\\n",
+			2 << j, timtable[0][j-1], timtable[1][j-1], timtable[2][j-1]);
+#endif
 
 	if (!myrank)
 	{
