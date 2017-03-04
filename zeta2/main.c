@@ -143,7 +143,7 @@ int vtest (void)
 	FILE *log = NULL;
 
 	// Helper table for LaTeX
-#ifdef TEXERROR
+#ifdef TEXTABLE
 	double errtable[3][24];
 	double timtable[3][24];
 #endif
@@ -184,7 +184,7 @@ int vtest (void)
 				double computed = ret ();
 				double error = fabs (M_PI - computed);
 
-#ifdef TEXERROR
+#ifdef TEXTABLE
             	errtable[i-1][j-1] = error;
             	timtable[i-1][j-1] = tavg;
 #else
@@ -195,14 +195,17 @@ int vtest (void)
 		}
 	}
 
-#ifdef TEXERROR
-	for (int j = 1; j <= 24; j++)
-		fprintf (log, "\t\t%i\t& %.20f & %.20f & %.20f \\\\\n",
-			2 << j, errtable[0][j-1], errtable[1][j-1], errtable[2][j-1]);
-	
-	for (int j = 1; j <= 24; j++)
-		fprintf (log, "\t\t%i\t& %.20f & %.20f & %.20f \\\\\n",
-			2 << j, timtable[0][j-1], timtable[1][j-1], timtable[2][j-1]);
+#ifdef TEXTABLE
+	if (!myrank)
+	{
+		for (int j = 1; j <= 24; j++)
+			fprintf (log, "\t\t%i\t& %.20f & %.20f & %.20f \\\\\n",
+				2 << j, errtable[0][j-1], errtable[1][j-1], errtable[2][j-1]);
+
+		for (int j = 1; j <= 24; j++)
+			fprintf (log, "\t\t%i\t& %.20f & %.20f & %.20f \\\\\n",
+				2 << j, timtable[0][j-1], timtable[1][j-1], timtable[2][j-1]);
+	}
 #endif
 
 	if (!myrank)

@@ -153,7 +153,7 @@ int vtest (void)
 	FILE *log = NULL;
 
 	// Helper table for LaTeX
-#ifdef TEXERROR
+#ifdef TEXTABLE
 	double errtable[3][24];
 	double timtable[3][24];
 #endif
@@ -194,7 +194,7 @@ int vtest (void)
 				double computed = ret ();
 				double error = fabs (M_PI - computed);
 
-#ifdef TEXERROR
+#ifdef TEXTABLE
             	errtable[i-1][j-1] = error;
             	timtable[i-1][j-1] = tavg;
 #else
@@ -205,7 +205,7 @@ int vtest (void)
 		}
 	}
 
-#ifdef TEXERROR
+#ifdef TEXTABLE
 	if (!myrank)
 	{
 		for (int j = 1; j <= 24; j++)
