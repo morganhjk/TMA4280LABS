@@ -302,9 +302,62 @@ real rhs (real x, real y)
 
 void transpose (real **bt, real **b, size_t m)
 {
-    for (size_t i = 0; i < m; i++)
+#if 0
+	// Allocate stuff
+	int *sendcounts = (int*) malloc (commsize * sizeof (int));
+	int *recvcounts = (int*) malloc (commsize * sizeof (int));
+	int *senddispl  = (int*) malloc (commsize * sizeof (int));
+	int *recvdispl  = (int*) malloc (commsize * sizeof (int));
+	
+	// Init
+	for (int i = 0; i < commsize; i++)
+	{
+		// At this point, from and to describe the rows for this process
+		// Get n
+		int nrows = to - from;
+		
+		sendcounts[i] = 1;
+		recvcounts[i] = 1;
+		senddispl[i] = 1;
+		recvdispl[i] = 1;
+	}
+	
+	// Send
+	MPI_Alltoall (b[0], m/commsize, MPI_DOUBLE,
+		bt[0], m/commsize, MPI_DOUBLE, MPI_COMM_WORLD);
+	
+	/*void parallel_transpose_all(int id,double *lphi,double *tlphi,double *tempaux1, int m,int ln){
+        serial_transpose(lphi, tempaux1,ln,m);
+        MPI_Datatype    block_t;
+        MPI_Datatype    ub_block_t;   //upperbound row
+        int             bl[2];      //block length
+        MPI_Aint        dl[2];      //displacement location
+        MPI_Datatype    type[2]; 
+        MPI_Type_vector(ln, ln, m, MPI_DOUBLE, &block_t);
+        bl[0] = bl[1] = 1;
+        dl[0] = 0;
+        dl[1] = ln*sizeof(double);
+        type[0] = block_t;
+        type[1] = MPI_UB;
+        MPI_Type_struct(2, bl, dl, type, &ub_block_t);
+        MPI_Type_commit(&ub_block_t);
+ 
+       MPI_Alltoall( tempaux1,1,ub_block_t,tlphi,(ln*ln),MPI_DOUBLE,MPI_COMM_WORLD);
+        MPI_Type_free(&ub_block_t);
+        MPI_Type_free(&block_t);
+}*/
+
+	// Free
+	free (sendcounts);
+	free (recvcounts);
+	free (senddispl);
+	free (recvdispl);
+#else
+	// Naive
+	for (size_t i = 0; i < m; i++)
         for (size_t j = 0; j < m; j++)
             bt[i][j] = b[j][i];
+#endif
 }
 
 /*
