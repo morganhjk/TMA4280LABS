@@ -20,6 +20,8 @@
 #include <mpi.h>
 #include <omp.h>
 
+#include "list.h"
+
 ///////////////////////////////////////////////////////////////////////////////
 // Definitions
 ///////////////////////////////////////////////////////////////////////////////
@@ -56,10 +58,6 @@ int myrank;
 
 // Number of threads per process
 int nthreads = 1;
-
-// These define this process working area
-int from;
-int to;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Functions
@@ -128,33 +126,6 @@ void initialize (int argc, char **argv)
 	}
 }
 
-void definearea (int m)
-{
-	// Calculate the number of rows per process and the remainder
-	int div = m / commsize;
-	int rem = m % commsize;
-
-	// Calculate offset due to remainder in previous processes
-	int offset = myrank < rem ? myrank * 1 : rem * 1;
-
-	// Calculate an adder for the number of rows we need to do
-	int adder = myrank < rem ? 1 : 0;
-
-	// Calculate the start
-	from = myrank * div + offset;
-
-	// Calculate the end
-	to = from + div + adder;
-
-	// Debug
-#if 1
-	if (!myrank)
-		printf ("div %i rem %i m %i commsize %i\n", div, rem, m, commsize);
-
-	printf ("Process %i calculating from %i to %i offset %i adder %i\n", myrank, from, to, offset, adder);
-#endif
-}
-
 void findmax (real **b, int m)
 {
 	// Global max and my max
@@ -192,6 +163,7 @@ int main (int argc, char **argv)
 
 	// Define this process working area
 	definearea (m);
+	buildlists (m, commsize);
 
     /*
      * Grid points are generated with constant mesh size on both x- and y-axis.
@@ -280,6 +252,7 @@ int main (int argc, char **argv)
     findmax (b, m);
 
 	// Done
+	destroylists ();
 	MPI_Finalize ();
 	return 0;
 }
@@ -302,7 +275,7 @@ real rhs (real x, real y)
 
 void transpose (real **bt, real **b, size_t m)
 {
-#if 0
+#if 1
 	// Allocate stuff
 	int *sendcounts = (int*) malloc (commsize * sizeof (int));
 	int *recvcounts = (int*) malloc (commsize * sizeof (int));
@@ -316,15 +289,22 @@ void transpose (real **bt, real **b, size_t m)
 		// Get n
 		int nrows = to - from;
 		
-		sendcounts[i] = 1;
-		recvcounts[i] = 1;
-		senddispl[i] = 1;
-		recvdispl[i] = 1;
+		sendcounts[i] = nrows * m;
+		senddispl[i] = from * m;
+		
+		int nrowsrecv = gettorow(i) - getfromrow(i);
+		
+		recvcounts[i] = nrowsrecv * m;
+		recvdispl[i] = getfromrow(i) * m;
+		
+		if (!myrank) printf ("rank %i nrows %i sendcounts[i] %i senddispl[i] %i recvcounts[i] %i recvdispl[i] %i\n",
+			i, nrows, sendcounts[i], senddispl[i], recvcounts[i], recvdispl[i]);
+		
 	}
 	
 	// Send
-	MPI_Alltoall (b[0], m/commsize, MPI_DOUBLE,
-		bt[0], m/commsize, MPI_DOUBLE, MPI_COMM_WORLD);
+	//MPI_Alltoall (b[0], m/commsize, MPI_DOUBLE,
+	//	bt[0], m/commsize, MPI_DOUBLE, MPI_COMM_WORLD);
 	
 	/*void parallel_transpose_all(int id,double *lphi,double *tlphi,double *tempaux1, int m,int ln){
         serial_transpose(lphi, tempaux1,ln,m);
@@ -352,6 +332,9 @@ void transpose (real **bt, real **b, size_t m)
 	free (recvcounts);
 	free (senddispl);
 	free (recvdispl);
+	
+	MPI_Finalize ();
+	exit(0);
 #else
 	// Naive
 	for (size_t i = 0; i < m; i++)
