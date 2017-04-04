@@ -31,6 +31,9 @@ endif()
 # Use C99
 set(CMAKE_C_FLAGS "-std=c99 ${CMAKE_C_FLAGS}")
 
+# Export compile commands for YCM
+set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
+
 # Send the include directories to the compiler
 include_directories(${INCLUDES})
 
