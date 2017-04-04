@@ -1,11 +1,12 @@
-
-
 /*
  * Write the transpose of b a matrix of R^(m*m) in bt.
  * In parallel the function MPI_Alltoallv is used to map directly the entries
  * stored in the array to the block structure, using displacement arrays.
  */
 
+///////////////////////////////////////////////////////////////////////////////
+// Includes
+///////////////////////////////////////////////////////////////////////////////
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -15,19 +16,28 @@
 #include "list.h"
 #include "transpose.h"
 
+///////////////////////////////////////////////////////////////////////////////
+// Extern variables
+///////////////////////////////////////////////////////////////////////////////
 extern int commsize;
 extern int myrank;
-extern int from;
-extern int to;
 
+///////////////////////////////////////////////////////////////////////////////
+// Private variables
+///////////////////////////////////////////////////////////////////////////////
+// Send counts and displacements
 int *sendcounts;
 int *recvcounts;
 int *senddispl;
 int *recvdispl;
 
+// MPI Datatypes
 MPI_Datatype matrixcolumn;
 MPI_Datatype matrixcolumntype;
 
+///////////////////////////////////////////////////////////////////////////////
+// Functions
+///////////////////////////////////////////////////////////////////////////////
 void inittranspose (int rank, int m)
 {
 	// Allocate stuff
@@ -50,15 +60,23 @@ void inittranspose (int rank, int m)
 		int nrowsrecv = gettorow(i) - getfromrow(i);
 		
 		// Set amount and receive index
-		recvcounts[i] = nrowsrecv; // * m;
-		recvdispl[i] = getfromrow(i); // * m;
+		recvcounts[i] = nrowsrecv;
+		recvdispl[i] = getfromrow(i);
 	}
 	
-	// Create MPI data type
+	// Create MPI data type for matrix columns
 	MPI_Type_vector (m, 1, m, MPI_DOUBLE, &matrixcolumn);
 	MPI_Type_commit (&matrixcolumn);
 	MPI_Type_create_resized (matrixcolumn, 0, sizeof(double), &matrixcolumntype);
 	MPI_Type_commit (&matrixcolumntype);
+}
+
+void deinittranspose (void)
+{
+	free (sendcounts);
+	free (recvcounts);
+	free (senddispl);
+	free (recvdispl);
 }
 
 void printtranspose (int rank, int m)
@@ -66,8 +84,12 @@ void printtranspose (int rank, int m)
 	// Print debug info
 	for (int i = 0; i < commsize; i++)
 	{
+		// Recalculate nrows as it is not stored explicitly
 		int nrows = gettorow(rank) - getfromrow(rank);
-		printf ("from %i to rank %i nrows %i sendcounts[i] %i senddispl[i] %i recvcounts[i] %i recvdispl[i] %i\n",
+		
+		// Print contents
+		printf ("from %i to rank %i nrows %i"
+				" sendcounts[i] %i senddispl[i] %i recvcounts[i] %i recvdispl[i] %i\n",
 			rank, i, nrows, sendcounts[i], senddispl[i], recvcounts[i], recvdispl[i]);
 		
 	}
@@ -90,39 +112,61 @@ void printtestmatrix (int rank, double *c)
 
 void testtranspose ()
 {
-	destroylists ();
-	buildlists (3, commsize);
+	// Check that we are running with correct number of processes first
+	if (commsize != 3)
+	{
+		if (!myrank)
+			printf ("incorrect commsize, must test with 3\n");
+		MPI_Finalize ();
+		exit (0);
+	}
 	
-	double *b = (double*) malloc (4 * 4 * sizeof (double));
-	double *c = (double*) malloc (4 * 4 * sizeof (double));
+	// Test matrix size
 	int m = 3;
 	
+	// Rebuild lists for our test purposes
+	destroylists ();
+	buildlists (m, commsize);
+	
+	// Create a source and destination matrix
+	double *b = (double*) malloc (m * m * sizeof (double));
+	double *c = (double*) malloc (m * m * sizeof (double));
+	
+	// Initialize source matrix with something we recognize, and set destination to zero
 	for (int i = 0; i < m*m; i++)
 	{
 		b[i] = (myrank * 10) + i;
 		c[i] = 0;
 	}
 	
+	// Initialize Alltoallv arrays
 	inittranspose (myrank, m);
+	
+	// Print their contents for examination
 	printtranspose (myrank, m);
 	
+	// Do the actual transmission and transposition using a single mpi call
 	MPI_Alltoallv (b, sendcounts, senddispl, MPI_DOUBLE,
 		c, recvcounts, recvdispl, matrixcolumntype, MPI_COMM_WORLD);
 	
+	// Print the results from each process
 	printtestmatrix (0, c);
 	MPI_Barrier (MPI_COMM_WORLD);
 	printtestmatrix (1, c);
 	MPI_Barrier (MPI_COMM_WORLD);
 	printtestmatrix (2, c);
 	
-	free (sendcounts);
-	free (recvcounts);
-	free (senddispl);
-	free (recvdispl);
+	// Free transpose arrays
+	deinittranspose ();
 	
+	// Free matrix arrays
 	free (c);
 	free (b);
 	
+	// Free lists
+	destroylists ();
+	
+	// Exit
 	MPI_Finalize ();
 	exit(0);
 }
@@ -131,43 +175,6 @@ void transpose (double **bt, double **b, size_t m)
 {
 #if 1
 	testtranspose ();
-	// Init
-	inittranspose (myrank, m);
-	printtranspose (myrank, m);
-	
-	// Send
-	//MPI_Alltoall (b[0], m/commsize, MPI_DOUBLE,
-	//	bt[0], m/commsize, MPI_DOUBLE, MPI_COMM_WORLD);
-	
-	/*void parallel_transpose_all(int id,double *lphi,double *tlphi,double *tempaux1, int m,int ln){
-        serial_transpose(lphi, tempaux1,ln,m);
-        MPI_Datatype    block_t;
-        MPI_Datatype    ub_block_t;   //upperbound row
-        int             bl[2];      //block length
-        MPI_Aint        dl[2];      //displacement location
-        MPI_Datatype    type[2]; 
-        MPI_Type_vector(ln, ln, m, MPI_DOUBLE, &block_t);
-        bl[0] = bl[1] = 1;
-        dl[0] = 0;
-        dl[1] = ln*sizeof(double);
-        type[0] = block_t;
-        type[1] = MPI_UB;
-        MPI_Type_struct(2, bl, dl, type, &ub_block_t);
-        MPI_Type_commit(&ub_block_t);
- 
-       MPI_Alltoall( tempaux1,1,ub_block_t,tlphi,(ln*ln),MPI_DOUBLE,MPI_COMM_WORLD);
-        MPI_Type_free(&ub_block_t);
-        MPI_Type_free(&block_t);
-}*/
-
-	// Free
-	free (sendcounts);
-	free (recvcounts);
-	free (senddispl);
-	free (recvdispl);
-	
-	MPI_Finalize ();
-	exit(0);
 #else
 	// Naive
 	for (size_t i = 0; i < m; i++)
