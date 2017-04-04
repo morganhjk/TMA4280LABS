@@ -81,7 +81,7 @@ void buildlists (int m, int nprocs)
 	}
 	
 	// Debug
-#if 1
+#if 0
 	if (!myrank)
 	{
 		printf ("div %i rem %i m %i nprocs %i\n", div, rem, m, nprocs);

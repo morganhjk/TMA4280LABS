@@ -95,12 +95,13 @@ void printtranspose (int rank, int m)
 	}
 }
 
-void printtestmatrix (int rank, double *c)
+void printtestmatrix (int rank, double *c, int m)
 {
 	if (rank != myrank)
 		return;
 
-	printf ("rank %i\n"
+	if (m == 3)
+	printf ("rank %i "
 			"\t%f %f %f\n"
 			"\t%f %f %f\n"
 			"\t%f %f %f\n",
@@ -108,6 +109,15 @@ void printtestmatrix (int rank, double *c)
 			c[0], c[1], c[2],
 			c[3], c[4], c[5],
 			c[6], c[7], c[8]);
+	else
+	printf ("rank %i "
+			"\t%f %f %f %f %f %f %f\n"
+			"\t%f %f %f %f %f %f %f\n"
+			"\t%f %f %f %f %f %f %f\n",
+			rank,
+			c[0], c[1], c[2], c[3], c[4], c[5], c[6],
+			c[7], c[8], c[9], c[10], c[11], c[12], c[13],
+			c[14], c[15], c[16], c[17], c[18], c[19], c[20]);
 }
 
 void testtranspose ()
@@ -122,7 +132,7 @@ void testtranspose ()
 	}
 	
 	// Test matrix size
-	int m = 3;
+	int m = 7;
 	
 	// Rebuild lists for our test purposes
 	destroylists ();
@@ -135,7 +145,7 @@ void testtranspose ()
 	// Initialize source matrix with something we recognize, and set destination to zero
 	for (int i = 0; i < m*m; i++)
 	{
-		b[i] = (myrank * 10) + i;
+		b[i] = (myrank * 100) + i;
 		c[i] = 0;
 	}
 	
@@ -150,11 +160,11 @@ void testtranspose ()
 		c, recvcounts, recvdispl, matrixcolumntype, MPI_COMM_WORLD);
 	
 	// Print the results from each process
-	printtestmatrix (0, c);
-	MPI_Barrier (MPI_COMM_WORLD);
-	printtestmatrix (1, c);
-	MPI_Barrier (MPI_COMM_WORLD);
-	printtestmatrix (2, c);
+	for (int i = 0; i < commsize; i++)
+	{
+		MPI_Barrier (MPI_COMM_WORLD);
+		printtestmatrix (i, c, m);
+	}
 	
 	// Free transpose arrays
 	deinittranspose ();
@@ -174,7 +184,9 @@ void testtranspose ()
 void transpose (double **bt, double **b, size_t m)
 {
 #if 1
-	testtranspose ();
+	//testtranspose ();
+	MPI_Alltoallv (b[0], sendcounts, senddispl, MPI_DOUBLE,
+		bt[0], recvcounts, recvdispl, matrixcolumntype, MPI_COMM_WORLD);
 #else
 	// Naive
 	for (size_t i = 0; i < m; i++)

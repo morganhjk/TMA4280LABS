@@ -165,6 +165,7 @@ int main (int argc, char **argv)
 	// Define this process working area
 	definearea (m);
 	buildlists (m, commsize);
+	inittranspose (myrank, m);
 
     /*
      * Grid points are generated with constant mesh size on both x- and y-axis.
@@ -213,7 +214,7 @@ int main (int argc, char **argv)
      * of freedom, so it excludes the boundary (bug fixed by petterjf 2017).
      * 
      */
-    for (size_t i = 0; i < m; i++)
+    for (size_t i = from; i < to; i++)
         for (size_t j = 0; j < m; j++)
             b[i][j] = h * h * rhs(grid[i+1], grid[j+1]);
 
@@ -227,7 +228,7 @@ int main (int argc, char **argv)
      * In functions fst_ and fst_inv_ coefficients are written back to the input 
      * array (first argument) so that the initial values are overwritten.
      */
-    for (size_t i = 0; i < m; i++)
+    for (size_t i = from; i < to; i++)
         fst_(b[i], &n, z, &nn);
 
     transpose(bt, b, m);
@@ -236,23 +237,24 @@ int main (int argc, char **argv)
         fstinv_(bt[i], &n, z, &nn);
 
 	// Solve Lambda * \tilde U = \tilde G (Chapter 9. page 101 step 2)
-    for (size_t i = 0; i < m; i++)
+    for (size_t i = from; i < to; i++)
         for (size_t j = 0; j < m; j++)
             bt[i][j] = bt[i][j] / (diag[i] + diag[j]);
 
 	// Compute U = S^-1 * (S * Utilde^T) (Chapter 9. page 101 step 3)
-    for (size_t i = 0; i < m; i++)
+    for (size_t i = from; i < to; i++)
         fst_(bt[i], &n, z, &nn);
 
     transpose(b, bt, m);
 
-    for (size_t i = 0; i < m; i++)
+    for (size_t i = from; i < to; i++)
         fstinv_(b[i], &n, z, &nn);
 
     // Compute maximal value of solution for convergence analysis in L_\infty norm.
     findmax (b, m);
 
 	// Done
+	deinittranspose ();
 	destroylists ();
 	MPI_Finalize ();
 	return 0;

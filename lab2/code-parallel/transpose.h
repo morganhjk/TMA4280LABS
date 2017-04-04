@@ -23,7 +23,7 @@ void printtranspose (int rank, int m);
  * Print matrix of fixed size 3x3 in c, if rank equals the current
  * process' rank.
  */
-void printtestmatrix (int rank, double *c);
+void printtestmatrix (int rank, double *c, int m);
 
 /*
  * Test the transpose stuff. Note that it will destroy and rebuild
