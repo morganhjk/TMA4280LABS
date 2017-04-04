@@ -13,6 +13,7 @@
 #include <omp.h>
 
 #include "list.h"
+#include "transpose.h"
 
 extern int commsize;
 extern int myrank;
@@ -23,6 +24,9 @@ int *sendcounts;
 int *recvcounts;
 int *senddispl;
 int *recvdispl;
+
+MPI_Datatype matrixcolumn;
+MPI_Datatype matrixcolumntype;
 
 void inittranspose (int rank, int m)
 {
@@ -40,15 +44,21 @@ void inittranspose (int rank, int m)
 		
 		// Set our amount and displacement. We send all our data to everyone
 		sendcounts[i] = nrows * m;
-		senddispl[i] = from * m;
+		senddispl[i] = getfromrow(rank) * m;
 		
 		// Get number of rows to receive
 		int nrowsrecv = gettorow(i) - getfromrow(i);
 		
 		// Set amount and receive index
-		recvcounts[i] = nrowsrecv * m;
-		recvdispl[i] = getfromrow(i) * m;
+		recvcounts[i] = nrowsrecv; // * m;
+		recvdispl[i] = getfromrow(i); // * m;
 	}
+	
+	// Create MPI data type
+	MPI_Type_vector (m, 1, m, MPI_DOUBLE, &matrixcolumn);
+	MPI_Type_commit (&matrixcolumn);
+	MPI_Type_create_resized (matrixcolumn, 0, sizeof(double), &matrixcolumntype);
+	MPI_Type_commit (&matrixcolumntype);
 }
 
 void printtranspose (int rank, int m)
@@ -63,9 +73,64 @@ void printtranspose (int rank, int m)
 	}
 }
 
+void printtestmatrix (int rank, double *c)
+{
+	if (rank != myrank)
+		return;
+
+	printf ("rank %i\n"
+			"\t%f %f %f\n"
+			"\t%f %f %f\n"
+			"\t%f %f %f\n",
+			rank,
+			c[0], c[1], c[2],
+			c[3], c[4], c[5],
+			c[6], c[7], c[8]);
+}
+
+void testtranspose ()
+{
+	destroylists ();
+	buildlists (3, commsize);
+	
+	double *b = (double*) malloc (4 * 4 * sizeof (double));
+	double *c = (double*) malloc (4 * 4 * sizeof (double));
+	int m = 3;
+	
+	for (int i = 0; i < m*m; i++)
+	{
+		b[i] = (myrank * 10) + i;
+		c[i] = 0;
+	}
+	
+	inittranspose (myrank, m);
+	printtranspose (myrank, m);
+	
+	MPI_Alltoallv (b, sendcounts, senddispl, MPI_DOUBLE,
+		c, recvcounts, recvdispl, matrixcolumntype, MPI_COMM_WORLD);
+	
+	printtestmatrix (0, c);
+	MPI_Barrier (MPI_COMM_WORLD);
+	printtestmatrix (1, c);
+	MPI_Barrier (MPI_COMM_WORLD);
+	printtestmatrix (2, c);
+	
+	free (sendcounts);
+	free (recvcounts);
+	free (senddispl);
+	free (recvdispl);
+	
+	free (c);
+	free (b);
+	
+	MPI_Finalize ();
+	exit(0);
+}
+
 void transpose (double **bt, double **b, size_t m)
 {
 #if 1
+	testtranspose ();
 	// Init
 	inittranspose (myrank, m);
 	printtranspose (myrank, m);
@@ -110,4 +175,3 @@ void transpose (double **bt, double **b, size_t m)
             bt[i][j] = b[j][i];
 #endif
 }
-
