@@ -146,6 +146,25 @@ void findmax (real **b, int m)
 		printf ("u_max = %e\n", u_max);
 }
 
+void printresults (real **bt, real **b, int m)
+{
+	// Cheap hack: transpose twice to sync
+	transpose (bt, b, m);
+	transpose (b, bt, m);
+
+	// Print the matrix from rank zero
+	if (!myrank)
+	{
+		for (int i = 0; i < m; i++)
+		{
+			for (int j = 0; j < m; j++)
+				printf (" %f", b[i][j]);
+
+			printf ("\n");
+		}
+	}
+}
+
 int main (int argc, char **argv)
 {
 	// Prepare ourselves for parallel operation
@@ -251,6 +270,9 @@ int main (int argc, char **argv)
 
 	// Compute maximal value of solution for convergence analysis in L_\infty norm.
 	findmax (b, m);
+
+	// Print result matrix
+	printresults (bt, b, m);
 
 	// Done
 	deinittranspose ();
