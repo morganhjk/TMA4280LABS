@@ -1,6 +1,7 @@
 project(poisson)
 
 cmake_minimum_required(VERSION 2.6)
+cmake_policy(SET CMP0012 NEW)
 
 enable_language(C)
 enable_language(Fortran)
@@ -17,7 +18,6 @@ if(MPI_FOUND)
   add_definitions(-DHAVE_MPI=1)
   set(INCLUDES ${INCLUDES} ${MPI_INCLUDE_PATH})
   set(DEPLIBS_C ${DEPLIBS_C} ${MPI_C_LIBRARIES})
-  set(DEPLIBS_F ${DEPLIBS_F} ${MPI_Fortran_LIBRARIES})
 endif()
 
 if(ENABLE_OPENMP)
@@ -28,11 +28,19 @@ if(ENABLE_OPENMP)
   endif()
 endif()
 
+# YouCompleteMe stuff
+if(EXISTS "${CMAKE_SOURCE_DIR}/.ycm")
+  set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
+  if(EXISTS "${CMAKE_BINARY_DIR}/compile_commands.json")
+    EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${CMAKE_BINARY_DIR}/compile_commands.json
+	  ${CMAKE_SOURCE_DIR}/compile_commands.json
+    )
+  endif()
+endif()
+
 # Use C99
 set(CMAKE_C_FLAGS "-std=c99 ${CMAKE_C_FLAGS}")
-
-# Export compile commands for YCM
-set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 
 # Send the include directories to the compiler
 include_directories(${INCLUDES})
@@ -43,14 +51,8 @@ add_library(common fst.f)
 # The C based poisson application
 add_executable(poisson poisson.c list.c transpose.c)
 
-# The Fortran based poisson application
-add_executable(poisson-f poisson.f90)
-
 # Link to libraries
 target_link_libraries(poisson common ${DEPLIBS_C})
 
 # We want to link this as a C program
 set_target_properties(poisson PROPERTIES LINKER_LANGUAGE C)
-
-# Link to libraries
-target_link_libraries(poisson-f common ${DEPLIBS_F})
