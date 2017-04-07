@@ -163,8 +163,7 @@ int main (int argc, char **argv)
 	real h = 1.0 / n;
 
 	// Define this process working area
-	definearea (m);
-	buildlists (m, commsize);
+	buildlists (m, commsize, myrank);
 	inittranspose (myrank, m);
 
 	/*
