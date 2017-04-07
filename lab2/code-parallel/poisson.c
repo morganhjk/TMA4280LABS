@@ -233,7 +233,7 @@ int main (int argc, char **argv)
 
 	transpose (bt, b, m);
 
-	for (size_t i = 0; i < m; i++)
+	for (size_t i = from; i < to; i++)
 		fstinv_ (bt[i], &n, z, &nn);
 
 	// Solve Lambda * \tilde U = \tilde G (Chapter 9. page 101 step 2)
