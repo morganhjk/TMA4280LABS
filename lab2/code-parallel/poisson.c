@@ -60,6 +60,16 @@ int myrank;
 // Number of threads per process
 int nthreads = 1;
 
+/*
+ *  The equation is solved on a 2D structured grid and homogeneous Dirichlet
+ *  conditions are applied on the boundary:
+ *  - the number of grid points in each direction is n+1,
+ *  - the number of degrees of freedom in each direction is m = n-1,
+ *  - the mesh size is constant h = 1/n.
+ */
+int n, m;
+real h;
+
 ///////////////////////////////////////////////////////////////////////////////
 // Functions
 ///////////////////////////////////////////////////////////////////////////////
@@ -88,7 +98,7 @@ void initialize (int argc, char **argv)
 	}
 
 	// Get problem size (n)
-	int n = atoi (argv[1]);
+	n = atoi (argv[1]);
 
 	// Get number of threads (nthreads)
 	nthreads = atoi (argv[2]);
@@ -125,6 +135,10 @@ void initialize (int argc, char **argv)
 		}
 		exit (3);
 	}
+
+	// Set number of degrees of freedom and mesh size
+	m = n - 1;
+	h = 1.0 / n;
 }
 
 void findmax (real **b, int m)
@@ -151,17 +165,6 @@ int main (int argc, char **argv)
 	// Prepare ourselves for parallel operation
 	initialize (argc, argv);
 
-	/*
-	 *  The equation is solved on a 2D structured grid and homogeneous Dirichlet
-	 *  conditions are applied on the boundary:
-	 *  - the number of grid points in each direction is n+1,
-	 *  - the number of degrees of freedom in each direction is m = n-1,
-	 *  - the mesh size is constant h = 1/n.
-	 */
-	int n = atoi(argv[1]);
-	int m = n - 1;
-	real h = 1.0 / n;
-
 	// Define this process working area
 	definearea (m);
 	buildlists (m, commsize);
@@ -172,6 +175,7 @@ int main (int argc, char **argv)
 	 */
 	real *grid = mk_1D_array(n+1, false);
 
+#pragma omp parallel for num_threads(nthreads) schedule(static)
 	for (size_t i = 0; i < n+1; i++)
 		grid[i] = i * h;
 
@@ -182,6 +186,7 @@ int main (int argc, char **argv)
 	 */
 	real *diag = mk_1D_array(m, false);
 
+#pragma omp parallel for num_threads(nthreads) schedule(static)
 	for (size_t i = 0; i < m; i++)
 		diag[i] = 2.0 * (1.0 - cos((i+1) * PI / n));
 
@@ -206,7 +211,11 @@ int main (int argc, char **argv)
 	 * reallocations at each function call.
 	 */
 	int nn = 4 * n;
-	real *z = mk_1D_array(nn, false);
+	real *z[nthreads];
+
+	// Create a vector for each thread in this process
+	for (int i = 0; i < nthreads; i++)
+		z[i] = mk_1D_array(nn, false);
 
 	/*
 	 * Initialize the right hand side data for a given rhs function.
@@ -214,6 +223,7 @@ int main (int argc, char **argv)
 	 * of freedom, so it excludes the boundary (bug fixed by petterjf 2017).
 	 * 
 	 */
+#pragma omp parallel for num_threads(nthreads) schedule(static) collapse(2)
 	for (size_t i = from; i < to; i++)
 		for (size_t j = 0; j < m; j++)
 			b[i][j] = h * h * rhs(grid[i+1], grid[j+1]);
@@ -228,27 +238,32 @@ int main (int argc, char **argv)
 	 * In functions fst_ and fst_inv_ coefficients are written back to the input 
 	 * array (first argument) so that the initial values are overwritten.
 	 */
+#pragma omp parallel for num_threads(nthreads) schedule(static)
 	for (size_t i = from; i < to; i++)
-		fst_ (b[i], &n, z, &nn);
+		fst_ (b[i], &n, z[omp_get_thread_num()], &nn);
 
 	transpose (bt, b, m);
 
+#pragma omp parallel for num_threads(nthreads) schedule(static)
 	for (size_t i = from; i < to; i++)
-		fstinv_ (bt[i], &n, z, &nn);
+		fstinv_ (bt[i], &n, z[omp_get_thread_num()], &nn);
 
 	// Solve Lambda * \tilde U = \tilde G (Chapter 9. page 101 step 2)
+#pragma omp parallel for num_threads(nthreads) schedule(static) collapse(2)
 	for (size_t i = from; i < to; i++)
 		for (size_t j = 0; j < m; j++)
 			bt[i][j] = bt[i][j] / (diag[i] + diag[j]);
 
 	// Compute U = S^-1 * (S * Utilde^T) (Chapter 9. page 101 step 3)
+#pragma omp parallel for num_threads(nthreads) schedule(static)
 	for (size_t i = from; i < to; i++)
-		fst_ (bt[i], &n, z, &nn);
+		fst_ (bt[i], &n, z[omp_get_thread_num()], &nn);
 
 	transpose (b, bt, m);
 
+#pragma omp parallel for num_threads(nthreads) schedule(static)
 	for (size_t i = from; i < to; i++)
-		fstinv_ (b[i], &n, z, &nn);
+		fstinv_ (b[i], &n, z[omp_get_thread_num()], &nn);
 
 	// Compute maximal value of solution for convergence analysis in L_\infty norm.
 	findmax (b, m);
