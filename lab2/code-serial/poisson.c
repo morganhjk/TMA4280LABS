@@ -32,6 +32,25 @@ real rhs(real x, real y);
 void fst_(real *v, int *n, real *w, int *nn);
 void fstinv_(real *v, int *n, real *w, int *nn);
 
+void printresults (real **bt, real **b, int m)
+{
+	// Cheap hack: transpose twice to sync
+	transpose (bt, b, m);
+	transpose (b, bt, m);
+
+	// Print the matrix from rank zero
+	if (1) // (!myrank)
+	{
+		for (int i = 0; i < m; i++)
+		{
+			for (int j = 0; j < m; j++)
+				printf (" %f", b[i][j]);
+
+			printf ("\n");
+		}
+	}
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -155,6 +174,9 @@ int main(int argc, char **argv)
     }
 
     printf("u_max = %e\n", u_max);
+
+	// Print result matrix
+	printresults (bt, b, m);
 
     return 0;
 }

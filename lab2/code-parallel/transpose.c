@@ -213,7 +213,7 @@ void testtranspose ()
 
 	// Rebuild lists for our test purposes
 	destroylists ();
-	buildlists (m, commsize);
+	buildlists (m, commsize, myrank);
 
 	// Create a source and destination matrix
 	double *b = (double*) malloc (m * m * sizeof (double));
