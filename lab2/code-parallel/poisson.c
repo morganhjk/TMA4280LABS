@@ -162,12 +162,18 @@ void findmax (real **b, int m)
 		printf ("u_max = %e\n", u_max);
 }
 
-void printresults (real **bt, real **b, int m)
+real checkfunc (real x, real y)
 {
-#if PRINTTABLES
-	// Print the matrix from rank zero
+	return sin (PI * x) * sin (2.0 * PI * y);
+}
+
+void printresults (real **b, real *grid, int m)
+{
+	// Print the matrix from rank zero, and the error
 	if (!myrank)
 	{
+		printf ("Result matrix:\n");
+		
 		for (int i = 0; i < m; i++)
 		{
 			for (int j = 0; j < m; j++)
@@ -175,58 +181,46 @@ void printresults (real **bt, real **b, int m)
 
 			printf ("\n");
 		}
-	}
-#endif
-}
+		
+		printf ("Error matrix:\n");
+		
+		for (int i = 0; i < m; i++)
+		{
+			for (int j = 0; j < m; j++)
+				printf (" %f", checkfunc (grid[i+1], grid[j+1]) - b[i][j]);
 
-real checkfunc (real x, real y)
-{
-	return sin (PI * x) * sin (2.0 * PI * y);
+			printf ("\n");
+		}
+	}
 }
 
 void errorcheck (real **b, real *grid, int m)
 {
-#if PRINTTABLES
-	if (!myrank)
-		printf ("\n");
-#endif
-
-	real **u = mk_2D_array (m, m, true);
-	
-	for (size_t i = 0; i < m; i++)
-		for (size_t j = 0; j < m; j++)
-			u[i][j] = checkfunc (grid[i+1], grid[j+1]);
-	
+	// Global max and my max
+	double u_max = 0.0;
 	double maxerr = 0.0;
 	
-	if (!myrank)
+	// Calculate local max error
+	for (int i = from; i < to; i++)
 	{
-		for (int i = 0; i < m; i++)
+		for (int j = 0; j < m; j++)
 		{
-			for (int j = 0; j < m; j++)
-			{
-				double error = u[i][j] - b[i][j];
-				
-#if PRINTTABLES
-				printf (" %f", error);
-#endif
-				
-				if (error < 0.0)
-					error = -error;
-				
-				if (error > maxerr)
-					maxerr = error;
-			}
-
-#if PRINTTABLES
-			printf ("\n");
-#endif
+			double error = checkfunc (grid[i+1], grid[j+1]) - b[i][j];
+			
+			if (error < 0.0)
+				error = -error;
+			
+			if (error > maxerr)
+				maxerr = error;
 		}
-		
-		printf ("Largest error encountered: %f\n", maxerr);
 	}
 	
-	free (u);
+	// Reduce max
+	MPI_Allreduce (&maxerr, &u_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+	// Print max if we're process 0
+	if (!myrank)
+		printf ("Largest error encountered: %e\n", u_max);
 }
 
 int main (int argc, char **argv)
@@ -336,15 +330,21 @@ int main (int argc, char **argv)
 	// Compute maximal value of solution for convergence analysis in L_\infty norm.
 	findmax (b, m);
 
+	// Error check as in appendix B
+	errorcheck (b, grid, m);
+
+	// Print h^2 for comparison
+	if (!myrank)
+		printf ("h^2 = %e\n", h * h);
+
+#if PRINTTABLES
 	// Cheap hack: transpose twice to sync. Following functions are not parallel.
 	transpose (bt, b, m);
 	transpose (b, bt, m);
 
 	// Print result matrix
-	printresults (bt, b, m);
-
-	// Error check as in appendix B
-	errorcheck (b, grid, m);
+	printresults (b, grid, m);
+#endif
 
 	// Done
 	deinittranspose ();
