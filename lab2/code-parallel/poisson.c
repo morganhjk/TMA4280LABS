@@ -33,6 +33,8 @@
 typedef double real;
 typedef int bool;
 
+#define PRINTTABLES 0
+
 ///////////////////////////////////////////////////////////////////////////////
 // Function prototypes
 ///////////////////////////////////////////////////////////////////////////////
@@ -162,10 +164,7 @@ void findmax (real **b, int m)
 
 void printresults (real **bt, real **b, int m)
 {
-	// Cheap hack: transpose twice to sync
-	transpose (bt, b, m);
-	transpose (b, bt, m);
-
+#if PRINTTABLES
 	// Print the matrix from rank zero
 	if (!myrank)
 	{
@@ -177,6 +176,57 @@ void printresults (real **bt, real **b, int m)
 			printf ("\n");
 		}
 	}
+#endif
+}
+
+real checkfunc (real x, real y)
+{
+	return sin (PI * x) * sin (2.0 * PI * y);
+}
+
+void errorcheck (real **b, real *grid, int m)
+{
+#if PRINTTABLES
+	if (!myrank)
+		printf ("\n");
+#endif
+
+	real **u = mk_2D_array (m, m, true);
+	
+	for (size_t i = 0; i < m; i++)
+		for (size_t j = 0; j < m; j++)
+			u[i][j] = checkfunc (grid[i+1], grid[j+1]);
+	
+	double maxerr = 0.0;
+	
+	if (!myrank)
+	{
+		for (int i = 0; i < m; i++)
+		{
+			for (int j = 0; j < m; j++)
+			{
+				double error = u[i][j] - b[i][j];
+				
+#if PRINTTABLES
+				printf (" %f", error);
+#endif
+				
+				if (error < 0.0)
+					error = -error;
+				
+				if (error > maxerr)
+					maxerr = error;
+			}
+
+#if PRINTTABLES
+			printf ("\n");
+#endif
+		}
+		
+		printf ("Largest error encountered: %f\n", maxerr);
+	}
+	
+	free (u);
 }
 
 int main (int argc, char **argv)
@@ -286,8 +336,15 @@ int main (int argc, char **argv)
 	// Compute maximal value of solution for convergence analysis in L_\infty norm.
 	findmax (b, m);
 
+	// Cheap hack: transpose twice to sync. Following functions are not parallel.
+	transpose (bt, b, m);
+	transpose (b, bt, m);
+
 	// Print result matrix
 	printresults (bt, b, m);
+
+	// Error check as in appendix B
+	errorcheck (b, grid, m);
 
 	// Done
 	deinittranspose ();
@@ -303,7 +360,11 @@ int main (int argc, char **argv)
 
 real rhs (real x, real y)
 {
+#if 0
 	return 2 * (y - y*y + x - x*x);
+#else
+	return 5.0 * PI * PI * sin (PI * x) * sin (2.0 * PI * y);
+#endif
 }
 
 /*
