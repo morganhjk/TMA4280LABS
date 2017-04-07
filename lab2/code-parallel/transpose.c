@@ -108,6 +108,12 @@ void transpose (double **bt, double **b, size_t m)
 {
 #if 1
 	// Parallel version
+	MPI_Alltoallv (b[0], sendcounts, senddispl, MPI_DOUBLE,
+		bt[0], recvcounts, recvdispl, matrixcolumntype, MPI_COMM_WORLD);
+#endif
+
+#if 0
+	// Parallel version, timed
 	double start = MPI_Wtime ();
 
 	MPI_Alltoallv (b[0], sendcounts, senddispl, MPI_DOUBLE,
