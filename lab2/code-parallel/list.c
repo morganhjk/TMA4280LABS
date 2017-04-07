@@ -23,6 +23,7 @@ int to;
 // These are for everyone
 int *fromarray;
 int *toarray;
+int *adderarray;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Functions
@@ -59,6 +60,7 @@ void buildlists (int m, int nprocs)
 	// Allocate space
 	fromarray = (int*) malloc (nprocs * sizeof (int));
 	toarray = (int*) malloc (nprocs * sizeof (int));
+	adderarray = (int*) malloc (nprocs * sizeof (int));
 	
 	// Calculate the number of rows per process and the remainder
 	int div = m / nprocs;
@@ -71,13 +73,13 @@ void buildlists (int m, int nprocs)
 		int offset = i < rem ? i : rem;
 
 		// Calculate an adder for the number of rows we need to do
-		int adder = i < rem ? 1 : 0;
+		adderarray[i] = i < rem ? 1 : 0;
 
 		// Calculate the start
 		fromarray[i] = i * div + offset;
 
 		// Calculate the end
-		toarray[i] = fromarray[i] + div + adder;
+		toarray[i] = fromarray[i] + div + adderarray[i];
 	}
 	
 	// Debug
@@ -106,4 +108,9 @@ int getfromrow (int rank)
 int gettorow (int rank)
 {
 	return toarray[rank];
+}
+
+int getadder (int rank)
+{
+	return adderarray[rank];
 }
