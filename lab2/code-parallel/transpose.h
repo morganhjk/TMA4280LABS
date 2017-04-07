@@ -14,6 +14,11 @@ void inittranspose (int rank, int m);
 void deinittranspose (void);
 
 /*
+ * Transpose matrix b in parallel, and store it in bt.
+ */
+void transpose (double **bt, double **b, size_t m);
+
+/*
  * For debug purposes: Print the contents of the arrays made by
  * inittranspose.
  */
@@ -30,10 +35,5 @@ void printtestmatrix (int rank, double *c, int m);
  * lists as it sees fit and may not be used in production.
  */
 void testtranspose (void);
-
-/*
- * Transpose matrix b in parallel, and store it in bt.
- */
-void transpose (double **bt, double **b, size_t m);
 
 #endif

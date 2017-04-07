@@ -104,6 +104,59 @@ void deinittranspose (void)
 	free (recvdispl);
 }
 
+void transpose (double **bt, double **b, size_t m)
+{
+#if 1
+	// Parallel version
+	double start = MPI_Wtime ();
+
+	MPI_Alltoallv (b[0], sendcounts, senddispl, MPI_DOUBLE,
+		bt[0], recvcounts, recvdispl, matrixcolumntype, MPI_COMM_WORLD);
+
+	double end = MPI_Wtime ();
+
+	if (!myrank)
+		printf ("Transpose time %f seconds\n", (end - start));
+#endif
+
+#if 0
+	// This is just a test, do not use
+	double start = MPI_Wtime ();
+
+	for (int i = 0; i < commsize; i++)
+	{
+		int indexto = (myrank - i) % commsize;
+		
+		int offset = getfromrow (myrank) * m;
+		
+		offset += indexto;
+		
+		MPI_Status status;
+		
+		MPI_Sendrecv (&b[0][offset], 1, (getadder(i) ? sendtypelarge : sendtypesmall),
+			i, 0,
+			&b[0][offset], 1, (getadder(i) ? recvtypelarge : recvtypesmall),
+			i, 0, MPI_COMM_WORLD, &status);
+	}
+
+	double end = MPI_Wtime ();
+
+	if (!myrank)
+		printf ("Transpose time %f seconds\n", (end - start));
+#endif
+
+#if 0
+	// Naive approach from the naive version
+	for (size_t i = 0; i < m; i++)
+        for (size_t j = 0; j < m; j++)
+            bt[i][j] = b[j][i];
+#endif
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Debug Functions
+///////////////////////////////////////////////////////////////////////////////
 void printtranspose (int rank, int m)
 {
 	// Print debug info
@@ -181,8 +234,7 @@ void testtranspose ()
 	printtranspose (myrank, m);
 	
 	// Do the actual transmission and transposition using a single mpi call
-	MPI_Alltoallv (b, sendcounts, senddispl, MPI_DOUBLE,
-		c, recvcounts, recvdispl, matrixcolumntype, MPI_COMM_WORLD);
+	transpose (&c, &b, m);
 	
 	// Print the results from each process
 	for (int i = 0; i < commsize; i++)
@@ -204,58 +256,4 @@ void testtranspose ()
 	// Exit
 	MPI_Finalize ();
 	exit(0);
-}
-
-void transpose (double **bt, double **b, size_t m)
-{
-#if 0
-	// Test transposition
-	testtranspose ();
-#endif
-
-#if 1
-	// Parallel version
-	double start = MPI_Wtime ();
-
-	MPI_Alltoallv (b[0], sendcounts, senddispl, MPI_DOUBLE,
-		bt[0], recvcounts, recvdispl, matrixcolumntype, MPI_COMM_WORLD);
-
-	double end = MPI_Wtime ();
-
-	if (!myrank)
-		printf ("Transpose time %f seconds\n", (end - start));
-#endif
-
-#if 0
-	// This is just a test, do not use
-	double start = MPI_Wtime ();
-
-	for (int i = 0; i < commsize; i++)
-	{
-		int indexto = (myrank - i) % commsize;
-		
-		int offset = getfromrow (myrank) * m;
-		
-		offset += indexto;
-		
-		MPI_Status status;
-		
-		MPI_Sendrecv (&b[0][offset], 1, (getadder(i) ? sendtypelarge : sendtypesmall),
-			i, 0,
-			&b[0][offset], 1, (getadder(i) ? recvtypelarge : recvtypesmall),
-			i, 0, MPI_COMM_WORLD, &status);
-	}
-
-	double end = MPI_Wtime ();
-
-	if (!myrank)
-		printf ("Transpose time %f seconds\n", (end - start));
-#endif
-
-#if 0
-	// Naive approach from the naive version
-	for (size_t i = 0; i < m; i++)
-        for (size_t j = 0; j < m; j++)
-            bt[i][j] = b[j][i];
-#endif
 }
