@@ -327,6 +327,10 @@ int main (int argc, char **argv)
 	for (size_t i = from; i < to; i++)
 		fstinv_ (b[i], &n, z[omp_get_thread_num()], &nn);
 
+	// Print n, P and t
+	if (!myrank)
+		printf ("n = %i, P = %i, t = %i\n", n, commsize, nthreads);
+
 	// Compute maximal value of solution for convergence analysis in L_\infty norm.
 	findmax (b, m);
 
